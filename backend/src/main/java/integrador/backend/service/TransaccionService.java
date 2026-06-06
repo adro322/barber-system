@@ -35,7 +35,7 @@ public class TransaccionService {
             Insumo insumo = detalle.getInsumo();
             int nuevoStock = insumo.getStock() - detalle.getCantidadUsada();
             insumo.setStock(nuevoStock);
-            insumoRepository.save(insumo); // Actualiza la BD
+            insumoRepository.save(insumo); 
         }
 
         //REGISTRO DEL PAGO
