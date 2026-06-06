@@ -19,7 +19,7 @@ public class UsuarioService {
     @Autowired
     private RolRepository rolRepository;
 
-    // Herramienta para encriptar la contraseña (¡Ciberseguridad!)
+    // Herramienta para encriptar la contraseña 
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public Usuario registrarUsuario(Usuario usuario, String nombreRol) {
@@ -30,7 +30,7 @@ public class UsuarioService {
         if (rolExistente.isPresent()) {
             rol = rolExistente.get();
         } else {
-            // Si el rol no existe (ej. la base de datos está vacía), lo creamos
+            // Si el rol no existe, lo creamos
             Rol nuevoRol = new Rol();
             nuevoRol.setNombre(nombreRol);
             rol = rolRepository.save(nuevoRol);
