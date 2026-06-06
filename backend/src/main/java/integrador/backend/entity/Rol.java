@@ -21,6 +21,7 @@ public class Rol {
     }
 
     public Rol() {
+        
     }
     
     public String getNombre() {
