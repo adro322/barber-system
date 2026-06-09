@@ -32,7 +32,16 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll() 
+                .requestMatchers("/api/auth/**").permitAll() // Login abierto a todos
+                
+                // --- REGLAS DE INVENTARIO ---
+                // Solo Admin y Barbero pueden VER (GET)
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/insumos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                // SOLAMENTE EL ADMIN puede AGREGAR, EDITAR o ELIMINAR (POST, PUT, DELETE)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
+
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

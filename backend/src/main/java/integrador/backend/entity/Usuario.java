@@ -30,6 +30,10 @@ public class Usuario {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "codigo_recuperacion")
+    private String codigoRecuperacion;
+
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -58,5 +62,8 @@ public class Usuario {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getCodigoRecuperacion() { return codigoRecuperacion; }
+    public void setCodigoRecuperacion(String codigoRecuperacion) { this.codigoRecuperacion = codigoRecuperacion; }
 
 }

@@ -19,4 +19,9 @@ public class InsumoService {
     public List<Insumo> listarTodos() {
         return insumoRepository.findAll();
     }
+    
+    public List<Insumo> obtenerInsumosEnAlerta() {
+        // Fijamos el umbral en 10 como pediste
+        return insumoRepository.findByStockLessThanEqual(10);
+    }
 }

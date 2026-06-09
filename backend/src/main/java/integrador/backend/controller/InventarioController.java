@@ -23,4 +23,9 @@ public class InventarioController {
     public ResponseEntity<List<Insumo>> obtenerInsumos() {
         return ResponseEntity.ok(insumoService.listarTodos());
     }
+
+    @GetMapping("/alertas")
+    public ResponseEntity<List<Insumo>> verAlertasStock() {
+        return ResponseEntity.ok(insumoService.obtenerInsumosEnAlerta());
+    }
 }

@@ -9,7 +9,6 @@ public class LoginResponse {
         this.rol = rol;
     }
 
-    // Genera Getters y Setters
     public String getToken() { return token; }
     public String getRol() { return rol; }
 }
