@@ -8,4 +8,6 @@ import java.util.*;
 @Repository
 public interface DetalleServicioRepository extends JpaRepository<DetalleServicio, Long> {
     List<DetalleServicio> findByServicioId(Long idServicio);
+    List<DetalleServicio> findByInsumoId(Long idInsumo);
+    void deleteByInsumoId(Long idInsumo);
 }

@@ -24,6 +24,22 @@ public class InventarioController {
         return ResponseEntity.ok(insumoService.listarTodos());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Insumo> actualizarInsumo(@PathVariable Long id, @RequestBody Insumo insumo) {
+        return ResponseEntity.ok(insumoService.actualizarInsumo(id, insumo));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> eliminarInsumo(@PathVariable Long id) {
+        insumoService.eliminarInsumo(id);
+        return ResponseEntity.ok("Insumo eliminado exitosamente");
+    }
+
+    @PatchMapping("/{id}/agotar")
+    public ResponseEntity<Insumo> agotar(@PathVariable Long id) {
+        return ResponseEntity.ok(insumoService.descontarStock(id));
+    }
+
     @GetMapping("/alertas")
     public ResponseEntity<List<Insumo>> verAlertasStock() {
         return ResponseEntity.ok(insumoService.obtenerInsumosEnAlerta());

@@ -6,7 +6,7 @@ import integrador.backend.repository.BarberoRepository;
 import integrador.backend.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.util.*;
+import java.util.List;
 
 @Service
 public class BarberoService {
@@ -18,23 +18,35 @@ public class BarberoService {
     private UsuarioRepository usuarioRepository;
 
     public Barbero crearPerfilBarbero(Long idUsuario, String telefono) {
-        // 1. Buscamos al usuario en la base de datos
         Usuario usuario = usuarioRepository.findById(idUsuario)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // 2. Creamos el perfil del barbero y lo enlazamos
         Barbero barbero = new Barbero();
         barbero.setUsuario(usuario);
-        barbero.setNombre(usuario.getNombre()); 
+        barbero.setNombre(usuario.getNombre());
         barbero.setTelefono(telefono);
         barbero.setEstado("ACTIVO");
 
-        // 3. Lo guardamos en la tabla barberos
         return barberoRepository.save(barbero);
     }
-    
+
     public List<Barbero> obtenerTodos() {
         return barberoRepository.findAll();
+    }
+
+    public Barbero actualizarBarbero(Long id, String nombre, String telefono) {
+        Barbero barbero = barberoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Barbero no encontrado"));
+        if (nombre != null) barbero.setNombre(nombre);
+        if (telefono != null) barbero.setTelefono(telefono);
+        return barberoRepository.save(barbero);
+    }
+
+    public Barbero cambiarEstado(Long id, String estado) {
+        Barbero barbero = barberoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Barbero no encontrado"));
+        barbero.setEstado(estado.toUpperCase());
+        return barberoRepository.save(barbero);
     }
 
     public void eliminarBarbero(Long id) {

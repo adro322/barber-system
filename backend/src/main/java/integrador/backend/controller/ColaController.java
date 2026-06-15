@@ -17,9 +17,9 @@ public class ColaController {
     @PostMapping
     public ResponseEntity<Turno> generarTurno(
             @RequestParam String cliente,
-            @RequestParam Long idBarbero,
-            @RequestParam Long idServicio) {
-        return ResponseEntity.ok(turnoService.crearTurno(cliente, idBarbero, idServicio));
+            @RequestParam Long idServicio,
+            @RequestParam(required = false) Long idBarbero) {
+        return ResponseEntity.ok(turnoService.crearTurno(cliente, idServicio, idBarbero));
     }
 
     @PutMapping("/{id}/estado")
@@ -27,6 +27,13 @@ public class ColaController {
             @PathVariable Long id,
             @RequestParam String estado) {
         return ResponseEntity.ok(turnoService.cambiarEstado(id, estado));
+    }
+
+    @PutMapping("/{id}/asignar")
+    public ResponseEntity<Turno> asignarBarbero(
+            @PathVariable Long id,
+            @RequestParam Long idBarbero) {
+        return ResponseEntity.ok(turnoService.asignarBarbero(id, idBarbero));
     }
 
     @GetMapping

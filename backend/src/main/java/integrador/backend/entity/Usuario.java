@@ -1,5 +1,7 @@
 package integrador.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -21,6 +23,7 @@ public class Usuario {
     @Column(nullable = false, length = 100, unique = true)
     private String email;
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String contrasena;
 
@@ -30,9 +33,13 @@ public class Usuario {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @JsonIgnore
     @Column(name = "codigo_recuperacion")
     private String codigoRecuperacion;
 
+    @JsonIgnore
+    @Column(name = "codigo_expiracion")
+    private LocalDateTime codigoExpiracion;
 
     @PrePersist
     protected void onCreate() {
@@ -65,5 +72,8 @@ public class Usuario {
 
     public String getCodigoRecuperacion() { return codigoRecuperacion; }
     public void setCodigoRecuperacion(String codigoRecuperacion) { this.codigoRecuperacion = codigoRecuperacion; }
+
+    public LocalDateTime getCodigoExpiracion() { return codigoExpiracion; }
+    public void setCodigoExpiracion(LocalDateTime codigoExpiracion) { this.codigoExpiracion = codigoExpiracion; }
 
 }

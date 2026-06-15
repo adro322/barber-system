@@ -11,10 +11,6 @@ public class Servicio {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "id_barbero", nullable = false)
-    private Barbero barbero;
-
     @Column(nullable = false, length = 100)
     private String nombre;
 
@@ -34,14 +30,6 @@ public class Servicio {
         this.id = id;
     }
 
-    public Barbero getBarbero() {
-        return barbero;
-    }
-    public void setBarbero(Barbero barbero) {
-        this.barbero = barbero;
-    }
-
-    
     public String getNombre() {
         return nombre;
     }

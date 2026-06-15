@@ -1,5 +1,6 @@
 package integrador.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -12,13 +13,14 @@ public class Turno {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "id_barbero", nullable = false)
+    @JoinColumn(name = "id_barbero", nullable = true)
     private Barbero barbero;
 
     @ManyToOne
     @JoinColumn(name = "id_servicio", nullable = false)
     private Servicio servicio;
 
+    @JsonIgnore
     @OneToOne(mappedBy = "turno")
     private Transaccion transaccion;
 

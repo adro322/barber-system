@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/barberos")
 public class BarberoController {
@@ -19,14 +18,27 @@ public class BarberoController {
     public ResponseEntity<Barbero> registrarBarbero(
             @RequestParam Long idUsuario,
             @RequestParam String telefono) {
-        
-        Barbero nuevoBarbero = barberoService.crearPerfilBarbero(idUsuario, telefono);
-        return ResponseEntity.ok(nuevoBarbero);
+        return ResponseEntity.ok(barberoService.crearPerfilBarbero(idUsuario, telefono));
     }
 
     @GetMapping
     public ResponseEntity<List<Barbero>> listarBarberos() {
         return ResponseEntity.ok(barberoService.obtenerTodos());
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Barbero> actualizarBarbero(
+            @PathVariable Long id,
+            @RequestParam(required = false) String nombre,
+            @RequestParam(required = false) String telefono) {
+        return ResponseEntity.ok(barberoService.actualizarBarbero(id, nombre, telefono));
+    }
+
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<Barbero> cambiarEstado(
+            @PathVariable Long id,
+            @RequestParam String estado) {
+        return ResponseEntity.ok(barberoService.cambiarEstado(id, estado));
     }
 
     @DeleteMapping("/{id}")

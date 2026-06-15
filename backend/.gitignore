@@ -35,3 +35,5 @@ build/
 ### Entorno Local y Seguridad ###
 .env
 *.env
+.env.properties
+*.env.properties

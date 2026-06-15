@@ -13,7 +13,7 @@ public class Transaccion {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "id_barbero", nullable = false)
+    @JoinColumn(name = "id_barbero", nullable = true)
     private Barbero barbero;
 
     @OneToOne

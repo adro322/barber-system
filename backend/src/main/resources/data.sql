@@ -1,0 +1,3 @@
+ALTER TABLE servicios DROP COLUMN IF EXISTS id_barbero CASCADE;
+ALTER TABLE turnos ALTER COLUMN id_barbero DROP NOT NULL;
+ALTER TABLE transacciones ALTER COLUMN id_barbero DROP NOT NULL;
