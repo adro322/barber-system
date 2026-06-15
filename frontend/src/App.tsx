@@ -113,6 +113,32 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
   nombre: string; screen: Screen; setScreen: (s: Screen) => void; onLogout: () => void;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [alertas, setAlertas] = useState<ApiInsumo[]>([]);
+  const [showBell, setShowBell] = useState(false);
+  const [seenIds, setSeenIds] = useState<Set<number>>(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const saved = JSON.parse(localStorage.getItem('bell_seen') || 'null');
+      return saved?.date === today ? new Set<number>(saved.ids) : new Set<number>();
+    } catch { return new Set<number>(); }
+  });
+
+  useEffect(() => {
+    api.get<ApiInsumo[]>('/api/insumos/alertas').then(setAlertas).catch(console.error);
+  }, []);
+
+  const unreadCount = alertas.filter(a => !seenIds.has(a.id)).length;
+  const toggleBell = () => {
+    if (!showBell) {
+      const updated = new Set([...seenIds, ...alertas.map(a => a.id)]);
+      setSeenIds(updated);
+      localStorage.setItem('bell_seen', JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        ids: [...updated],
+      }));
+    }
+    setShowBell(v => !v);
+  };
 
   const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -181,12 +207,55 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
             <Menu className="w-6 h-6" />
           </button>
           <span className="text-[#c9a84c] font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>BARBER VES</span>
-          <div className="w-8 h-8 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-sm">
-            {nombre.charAt(0)}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button onClick={toggleBell}
+                className="flex w-9 h-9 rounded-full bg-[#12121a] items-center justify-center text-[#c9a84c]">
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold pointer-events-none">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              {showBell && (
+                <div className="absolute right-0 top-11 w-72 max-w-[calc(100vw-2rem)] bg-[#12121a] border border-[#9a9ab0]/20 rounded-xl shadow-2xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[#9a9ab0]/20 flex items-center justify-between">
+                    <span className="text-white font-semibold text-sm">Alertas de Stock</span>
+                    <button onClick={() => setShowBell(false)} className="text-[#9a9ab0] hover:text-white text-xl leading-none">&times;</button>
+                  </div>
+                  {alertas.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-[#9a9ab0] text-sm">No hay notificaciones</div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto divide-y divide-[#9a9ab0]/10">
+                      {[...alertas].sort((a, b) => b.id - a.id).map(al => (
+                        <div key={al.id} className="px-4 py-3">
+                          <p className="text-white text-sm font-medium">{al.nombre}</p>
+                          <p className="text-red-400 text-xs mt-0.5">Stock: {al.stock} / Mínimo: {al.stockMinimo}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="w-8 h-8 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-sm">
+              {nombre.charAt(0)}
+            </div>
           </div>
         </div>
         <div className="flex-1 overflow-auto">
-          {screen === 'dashboard' && <DashboardScreen nombre={nombre} />}
+          {screen === 'dashboard' && (
+            <DashboardScreen
+              nombre={nombre}
+              alertas={alertas}
+              unreadCount={unreadCount}
+              showBell={showBell}
+              toggleBell={toggleBell}
+              setShowBell={setShowBell}
+              onAlertasUpdate={setAlertas}
+            />
+          )}
           {screen === 'caja' && <CajaScreen />}
           {screen === 'inventory' && <InventoryScreen />}
         </div>
@@ -196,21 +265,20 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function DashboardScreen({ nombre }: { nombre: string }) {
+function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, setShowBell, onAlertasUpdate }: {
+  nombre: string;
+  alertas: ApiInsumo[];
+  unreadCount: number;
+  showBell: boolean;
+  toggleBell: () => void;
+  setShowBell: (v: boolean) => void;
+  onAlertasUpdate: (al: ApiInsumo[]) => void;
+}) {
   const [activeTab, setActiveTab] = useState<'resumen' | 'cola' | 'barberos' | 'servicios'>('resumen');
   const [barberos, setBarberos] = useState<ApiBarbero[]>([]);
   const [turnos, setTurnos] = useState<ApiTurno[]>([]);
   const [servicios, setServicios] = useState<ApiServicio[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
-  const [alertas, setAlertas] = useState<ApiInsumo[]>([]);
-  const [showBell, setShowBell] = useState(false);
-  const [seenIds, setSeenIds] = useState<Set<number>>(() => {
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const saved = JSON.parse(localStorage.getItem('bell_seen') || 'null');
-      return saved?.date === today ? new Set<number>(saved.ids) : new Set<number>();
-    } catch { return new Set<number>(); }
-  });
 
   const refresh = () =>
     Promise.all([
@@ -220,7 +288,8 @@ function DashboardScreen({ nombre }: { nombre: string }) {
       api.get<ApiTransaccion[]>('/api/caja/transacciones'),
       api.get<ApiInsumo[]>('/api/insumos/alertas'),
     ]).then(([b, t, s, tr, al]) => {
-      setBarberos(b); setTurnos(t); setServicios(s); setTransacciones(tr); setAlertas(al);
+      setBarberos(b); setTurnos(t); setServicios(s); setTransacciones(tr);
+      onAlertasUpdate(al);
       try { sessionStorage.setItem('cache_admin', JSON.stringify({ b, t, s, tr, al })); } catch {}
     }).catch(console.error);
 
@@ -230,7 +299,8 @@ function DashboardScreen({ nombre }: { nombre: string }) {
       if (raw) {
         const { b, t, s, tr, al } = JSON.parse(raw);
         setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
-        setTransacciones(tr ?? []); setAlertas(al ?? []);
+        setTransacciones(tr ?? []);
+        onAlertasUpdate(al ?? []);
       }
     } catch {}
     refresh();
@@ -253,20 +323,6 @@ function DashboardScreen({ nombre }: { nombre: string }) {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  const unreadCount = alertas.filter(a => !seenIds.has(a.id)).length;
-
-  const toggleBell = () => {
-    if (!showBell) {
-      const updated = new Set([...seenIds, ...alertas.map(a => a.id)]);
-      setSeenIds(updated);
-      localStorage.setItem('bell_seen', JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
-        ids: [...updated],
-      }));
-    }
-    setShowBell(v => !v);
-  };
-
   const tabs = [
     { id: 'resumen', label: 'Resumen' },
     { id: 'cola', label: 'Cola de Turnos' },
@@ -281,7 +337,7 @@ function DashboardScreen({ nombre }: { nombre: string }) {
           <h1 className="text-xl md:text-2xl font-bold text-white mb-1">Buenos días, {nombre}</h1>
           <p className="text-[#9a9ab0] text-xs md:text-sm capitalize">{currentDate}</p>
         </div>
-        <div className="relative">
+        <div className="relative hidden md:block">
           <button onClick={toggleBell}
             className="flex w-10 h-10 rounded-full bg-[#12121a] items-center justify-center text-[#c9a84c]">
             <Bell className="w-5 h-5" />
@@ -292,7 +348,7 @@ function DashboardScreen({ nombre }: { nombre: string }) {
             )}
           </button>
           {showBell && (
-            <div className="absolute right-0 top-12 w-72 bg-[#12121a] border border-[#9a9ab0]/20 rounded-xl shadow-2xl z-50 overflow-hidden">
+            <div className="absolute right-0 top-12 w-72 max-w-[calc(100vw-2rem)] bg-[#12121a] border border-[#9a9ab0]/20 rounded-xl shadow-2xl z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-[#9a9ab0]/20 flex items-center justify-between">
                 <span className="text-white font-semibold text-sm">Alertas de Stock</span>
                 <button onClick={() => setShowBell(false)} className="text-[#9a9ab0] hover:text-white text-xl leading-none">&times;</button>
@@ -314,7 +370,7 @@ function DashboardScreen({ nombre }: { nombre: string }) {
         </div>
       </div>
 
-      <div className="flex gap-4 md:gap-6 mb-6 border-b border-[#c9a84c]/20 overflow-x-auto">
+      <div className="flex gap-4 md:gap-6 mb-6 border-b border-[#c9a84c]/20 overflow-x-auto scrollbar-hide">
         {tabs.map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`pb-3 font-medium text-sm md:text-base whitespace-nowrap transition-all ${
@@ -634,12 +690,12 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
                 <p className="text-[#9a9ab0] text-xs">{b.usuario.email}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 ml-16 sm:ml-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 pl-16 sm:pl-0">
               <span className={b.estado === 'ACTIVO' ? 'badge-active' : 'badge-inactive'}>
                 {b.estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
               </span>
               <button onClick={() => toggleEstado(b)}
-                className="px-4 py-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all text-sm">
+                className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all text-sm">
                 {b.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
               </button>
               <button onClick={() => openChangePwd(b)}
@@ -824,7 +880,7 @@ function ServiciosTab({ servicios, onRefresh }: {
           </div>
         ))}
         {servicios.length === 0 && (
-          <div className="glass-card p-12 text-center col-span-3">
+          <div className="glass-card p-12 text-center col-span-full">
             <p className="text-[#9a9ab0]">No hay servicios registrados</p>
           </div>
         )}
@@ -900,9 +956,9 @@ function CajaScreen() {
       <h1 className="text-xl md:text-2xl font-bold text-white mb-6 md:mb-8">Reporte de Caja — Hoy</h1>
 
       <div className="max-w-lg mx-auto glass-card p-6 mb-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <h2 className="text-lg font-bold text-[#c9a84c]">Resumen del Día</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-end sm:self-auto">
             <button onClick={handleExport}
               className="px-3 py-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all flex items-center gap-2 text-sm">
               <Download className="w-4 h-4" />
@@ -1260,7 +1316,7 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
   const currentDate = new Date().toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-4 max-w-lg mx-auto">
+    <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-6 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-xl">

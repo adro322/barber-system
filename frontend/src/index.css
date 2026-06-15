@@ -113,3 +113,6 @@
 .progress-high { background-color: var(--success); }
 .progress-medium { background-color: var(--warning); }
 .progress-low { background-color: var(--danger); }
+
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
