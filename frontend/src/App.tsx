@@ -245,17 +245,7 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
           </div>
         </div>
         <div className="flex-1 overflow-auto">
-          {screen === 'dashboard' && (
-            <DashboardScreen
-              nombre={nombre}
-              alertas={alertas}
-              unreadCount={unreadCount}
-              showBell={showBell}
-              toggleBell={toggleBell}
-              setShowBell={setShowBell}
-              onAlertasUpdate={setAlertas}
-            />
-          )}
+          {screen === 'dashboard' && <DashboardScreen nombre={nombre} />}
           {screen === 'caja' && <CajaScreen />}
           {screen === 'inventory' && <InventoryScreen />}
         </div>
@@ -265,20 +255,21 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, setShowBell, onAlertasUpdate }: {
-  nombre: string;
-  alertas: ApiInsumo[];
-  unreadCount: number;
-  showBell: boolean;
-  toggleBell: () => void;
-  setShowBell: (v: boolean) => void;
-  onAlertasUpdate: (al: ApiInsumo[]) => void;
-}) {
+function DashboardScreen({ nombre }: { nombre: string }) {
   const [activeTab, setActiveTab] = useState<'resumen' | 'cola' | 'barberos' | 'servicios'>('resumen');
   const [barberos, setBarberos] = useState<ApiBarbero[]>([]);
   const [turnos, setTurnos] = useState<ApiTurno[]>([]);
   const [servicios, setServicios] = useState<ApiServicio[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
+  const [alertas, setAlertas] = useState<ApiInsumo[]>([]);
+  const [showBell, setShowBell] = useState(false);
+  const [seenIds, setSeenIds] = useState<Set<number>>(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const saved = JSON.parse(localStorage.getItem('bell_seen') || 'null');
+      return saved?.date === today ? new Set<number>(saved.ids) : new Set<number>();
+    } catch { return new Set<number>(); }
+  });
 
   const refresh = () =>
     Promise.all([
@@ -288,8 +279,8 @@ function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, s
       api.get<ApiTransaccion[]>('/api/caja/transacciones'),
       api.get<ApiInsumo[]>('/api/insumos/alertas'),
     ]).then(([b, t, s, tr, al]) => {
-      setBarberos(b); setTurnos(t); setServicios(s); setTransacciones(tr);
-      onAlertasUpdate(al);
+      setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
+      setTransacciones(tr ?? []); setAlertas(al ?? []);
       try { sessionStorage.setItem('cache_admin', JSON.stringify({ b, t, s, tr, al })); } catch {}
     }).catch(console.error);
 
@@ -299,8 +290,7 @@ function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, s
       if (raw) {
         const { b, t, s, tr, al } = JSON.parse(raw);
         setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
-        setTransacciones(tr ?? []);
-        onAlertasUpdate(al ?? []);
+        setTransacciones(tr ?? []); setAlertas(al ?? []);
       }
     } catch {}
     refresh();
@@ -323,6 +313,19 @@ function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, s
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
+  const unreadCount = alertas.filter(a => !seenIds.has(a.id)).length;
+  const toggleBell = () => {
+    if (!showBell) {
+      const updated = new Set([...seenIds, ...alertas.map(a => a.id)]);
+      setSeenIds(updated);
+      localStorage.setItem('bell_seen', JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        ids: [...updated],
+      }));
+    }
+    setShowBell(v => !v);
+  };
+
   const tabs = [
     { id: 'resumen', label: 'Resumen' },
     { id: 'cola', label: 'Cola de Turnos' },
@@ -337,7 +340,7 @@ function DashboardScreen({ nombre, alertas, unreadCount, showBell, toggleBell, s
           <h1 className="text-xl md:text-2xl font-bold text-white mb-1">Buenos días, {nombre}</h1>
           <p className="text-[#9a9ab0] text-xs md:text-sm capitalize">{currentDate}</p>
         </div>
-        <div className="relative hidden md:block">
+        <div className="relative">
           <button onClick={toggleBell}
             className="flex w-10 h-10 rounded-full bg-[#12121a] items-center justify-center text-[#c9a84c]">
             <Bell className="w-5 h-5" />
