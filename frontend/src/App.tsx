@@ -911,7 +911,7 @@ function ColaTab({ turnos, barberos, servicios, onRefresh }: {
 // ─── Barberos tab ─────────────────────────────────────────────────────────────
 function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefresh: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ nombre: '', email: '', telefono: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ nombre: '', email: '', telefono: '' });
   const [loading, setLoading] = useState(false);
   const [editBarbero, setEditBarbero] = useState<ApiBarbero | null>(null);
   const [editForm, setEditForm] = useState({ nombre: '', telefono: '' });
@@ -937,7 +937,7 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
     if (pwdForm.password.length < 6) { alert('Mínimo 6 caracteres'); return; }
     setPwdLoading(true);
     try {
-      await api.put(`/api/usuarios/${pwdBarbero.usuario.id}/contrasena`, { nuevaContrasena: pwdForm.password });
+      await api.put(`/api/usuarios/${pwdBarbero.usuario.id}/contrasena`, undefined, { nuevaContrasena: pwdForm.password });
       setPwdBarbero(null);
     } catch (err: unknown) {
       alert((err as Error).message);
@@ -966,18 +966,15 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
   };
 
   const handleAdd = async () => {
-    if (form.password.length < 6) { alert('La contraseña debe tener mínimo 6 caracteres'); return; }
-    if (form.password !== form.confirm) { alert('Las contraseñas no coinciden'); return; }
-    if (!form.nombre || !form.email || !form.telefono || !form.password) return;
+    if (!form.nombre || !form.email || !form.telefono) return;
     setLoading(true);
     try {
       const usuario = await api.post<ApiUsuario>('/api/auth/registro', { rol: 'BARBERO' }, {
         nombre: form.nombre,
         email: form.email,
-        contrasena: form.password,
       });
       await api.post('/api/barberos/perfil', { idUsuario: String(usuario.id), telefono: form.telefono });
-      setForm({ nombre: '', email: '', telefono: '', password: '', confirm: '' });
+      setForm({ nombre: '', email: '', telefono: '' });
       setShowAdd(false);
       onRefresh();
     } catch (err: unknown) {
@@ -1081,29 +1078,12 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
                   onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                   className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
               ))}
-              <input type="password" placeholder="Contraseña" value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                className={`w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border outline-none transition-colors ${
-                  form.password.length > 0 && form.password.length < 6 ? 'border-[#e74c3c]' : 'border-[#9a9ab0] focus:border-[#c9a84c]'
-                }`} />
-              {form.password.length > 0 && form.password.length < 6 && (
-                <p className="text-[#e74c3c] text-xs -mt-2">Mínimo 6 caracteres</p>
-              )}
-              <input type="password" placeholder="Confirmar contraseña" value={form.confirm}
-                onChange={e => setForm({ ...form, confirm: e.target.value })}
-                className={`w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border outline-none transition-colors ${
-                  form.confirm.length > 0 && form.password !== form.confirm ? 'border-[#e74c3c]'
-                  : form.confirm.length > 0 && form.password === form.confirm ? 'border-[#00c896]'
-                  : 'border-[#9a9ab0] focus:border-[#c9a84c]'
-                }`} />
-              {form.confirm.length > 0 && form.password !== form.confirm && (
-                <p className="text-[#e74c3c] text-xs -mt-2">Las contraseñas no coinciden</p>
-              )}
-              {form.confirm.length > 0 && form.password === form.confirm && form.password.length >= 6 && (
-                <p className="text-[#00c896] text-xs -mt-2">Contraseñas coinciden ✓</p>
-              )}
+              <div className="bg-[#12121a] rounded-lg px-4 py-3 text-sm text-[#9a9ab0]">
+                Contraseña inicial: <span className="text-[#c9a84c] font-mono font-bold">Barber1234</span>
+                <p className="text-xs mt-1">El barbero puede cambiarla con "Olvidé mi contraseña".</p>
+              </div>
               <button onClick={handleAdd}
-                disabled={loading || !form.nombre || !form.email || !form.telefono || form.password.length < 6 || form.password !== form.confirm}
+                disabled={loading || !form.nombre || !form.email || !form.telefono}
                 className="w-full btn-gold disabled:opacity-50">
                 {loading ? 'Guardando...' : 'Guardar'}
               </button>

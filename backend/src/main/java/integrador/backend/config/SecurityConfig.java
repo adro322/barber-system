@@ -69,6 +69,9 @@ public class SecurityConfig {
                 // ── DETALLE-SERVICIO ──────────────────────────────────────
                 .requestMatchers("/api/detalle-servicio/**").hasAuthority("ROLE_ADMIN")
 
+                // ── USUARIOS (reset contraseña por admin) ────────────────
+                .requestMatchers("/api/usuarios/**").hasAuthority("ROLE_ADMIN")
+
                 // ── PERFIL (usuario sobre sí mismo) ───────────────────────
                 .requestMatchers("/api/perfil/**").authenticated()
 

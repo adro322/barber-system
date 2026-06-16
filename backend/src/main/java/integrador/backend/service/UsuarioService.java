@@ -35,7 +35,10 @@ public class UsuarioService {
         }
 
         usuario.setRol(rol);
-        usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
+        String pwd = (usuario.getContrasena() == null || usuario.getContrasena().isBlank())
+                ? "Barber1234"
+                : usuario.getContrasena();
+        usuario.setContrasena(passwordEncoder.encode(pwd));
         return usuarioRepository.save(usuario);
     }
 }
