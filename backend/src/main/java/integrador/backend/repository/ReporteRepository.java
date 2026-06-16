@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ReporteRepository extends JpaRepository<Reporte, Long> {
+    java.util.List<Reporte> findAllByOrderByFechaDesc();
+    java.util.Optional<Reporte> findByFecha(java.time.LocalDate fecha);
 }

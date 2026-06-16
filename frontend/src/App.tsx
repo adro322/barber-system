@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, DollarSign, Package, LogOut, Bell,
+  LayoutDashboard, DollarSign, Package, LogOut, Bell, Settings,
   Eye, EyeOff, Plus, Edit2, TrendingUp, Clock, Users, X, Download, Menu, Trash2, KeyRound,
+  BarChart2, Clipboard, ChevronRight,
 } from 'lucide-react';
 import { ScissorsIcon, CombIcon } from './components/icons/BarbershopIcons';
 import './index.css';
@@ -14,8 +15,9 @@ type ApiServicio = { id: number; nombre: string; precio: number; descripcion: st
 type ApiTurno = { id: number; nombreCliente: string; estado: string; fechaHora: string; barbero?: ApiBarbero; servicio: ApiServicio };
 type ApiTransaccion = { id: number; monto: number; tipoPago: string; fecha: string; barbero: ApiBarbero; turno: { id: number; nombreCliente: string; servicio: ApiServicio } };
 type ApiInsumo = { id: number; nombre: string; stock: number; stockMinimo: number; unidad: string };
+type ApiReporte = { id: number; fecha: string; totalEfectivo: number; totalYape: number; totalPlin: number; totalGeneral: number };
 type Auth = { token: string; rol: string; nombre: string; email: string };
-type Screen = 'dashboard' | 'caja' | 'inventory';
+type Screen = 'dashboard' | 'barberos' | 'insumos' | 'pagos' | 'reportes' | 'configuracion';
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -33,19 +35,32 @@ export default function App() {
     setScreen('dashboard');
   };
 
+  const handleAuthUpdate = () => {
+    const a = getAuth();
+    if (a) setAuthState(a);
+  };
+
   if (!auth) return <LoginScreen onLogin={handleLogin} />;
   if (auth.rol === 'BARBERO') return <BarberView nombre={auth.nombre} email={auth.email} onLogout={handleLogout} />;
 
-  return <AdminView nombre={auth.nombre} screen={screen} setScreen={setScreen} onLogout={handleLogout} />;
+  return <AdminView nombre={auth.nombre} screen={screen} setScreen={setScreen} onLogout={handleLogout} onAuthUpdate={handleAuthUpdate} />;
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
+type LoginMode = 'login' | 'forgot_email' | 'forgot_code';
+
 function LoginScreen({ onLogin }: { onLogin: (token: string, rol: string, nombre: string, email: string) => void }) {
+  const [mode, setMode] = useState<LoginMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Recuperación
+  const [recEmail, setRecEmail] = useState('');
+  const [recCode, setRecCode] = useState('');
+  const [recPwd, setRecPwd] = useState('');
+  const [recMsg, setRecMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,35 +78,103 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, rol: string, nombre
     }
   };
 
+  const handleSendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setLoading(true);
+    try {
+      await api.post('/api/auth/enviar-codigo-recuperacion', { email: recEmail });
+      setRecMsg('Código enviado. Revisa tu correo (válido 15 min).');
+      setMode('forgot_code');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Correo no registrado.');
+    } finally { setLoading(false); }
+  };
+
+  const handleResetPwd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setLoading(true);
+    try {
+      await api.post('/api/auth/restablecer-password', undefined, {
+        email: recEmail, codigo: recCode, nuevaContrasena: recPwd,
+      });
+      setRecMsg('¡Contraseña actualizada! Ya puedes iniciar sesión.');
+      setTimeout(() => { setMode('login'); setRecMsg(''); setRecEmail(''); setRecCode(''); setRecPwd(''); }, 2000);
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Código incorrecto o expirado.');
+    } finally { setLoading(false); }
+  };
+
+  const header = (
+    <div className="flex flex-col items-center mb-8">
+      <ScissorsIcon className="w-16 h-16 text-[#c9a84c] mb-4" />
+      <h1 className="text-3xl font-bold text-[#c9a84c] mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>BARBER VES</h1>
+      <p className="text-[#9a9ab0] text-sm">Sistema de Control Interno</p>
+    </div>
+  );
+
+  if (mode === 'forgot_email') return (
+    <div className="min-h-screen barber-pole-bg bg-[#0a0a0f] flex items-center justify-center p-4">
+      <div className="glass-card w-full max-w-md p-8">
+        {header}
+        <h2 className="text-white font-bold text-lg mb-2">Recuperar contraseña</h2>
+        <p className="text-[#9a9ab0] text-sm mb-6">Ingresa tu correo y te enviaremos un código de 6 dígitos.</p>
+        <form onSubmit={handleSendCode} className="space-y-4">
+          <input type="email" placeholder="Correo electrónico" value={recEmail}
+            onChange={e => setRecEmail(e.target.value)} required
+            className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border-b-2 border-[#9a9ab0] focus:border-[#c9a84c] outline-none transition-colors" />
+          {error && <p className="text-[#e74c3c] text-sm">{error}</p>}
+          <button type="submit" disabled={loading} className="w-full btn-gold disabled:opacity-60">
+            {loading ? 'Enviando...' : 'Enviar código'}
+          </button>
+          <button type="button" onClick={() => { setMode('login'); setError(''); }}
+            className="w-full text-[#9a9ab0] text-sm hover:text-white transition-colors">
+            ← Volver al inicio de sesión
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+
+  if (mode === 'forgot_code') return (
+    <div className="min-h-screen barber-pole-bg bg-[#0a0a0f] flex items-center justify-center p-4">
+      <div className="glass-card w-full max-w-md p-8">
+        {header}
+        <h2 className="text-white font-bold text-lg mb-2">Nueva contraseña</h2>
+        {recMsg && <p className="text-[#00c896] text-sm mb-4">{recMsg}</p>}
+        <form onSubmit={handleResetPwd} className="space-y-4">
+          <input type="text" placeholder="Código de 6 dígitos" value={recCode} maxLength={6}
+            onChange={e => setRecCode(e.target.value)} required
+            className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border-b-2 border-[#9a9ab0] focus:border-[#c9a84c] outline-none transition-colors tracking-widest text-center text-xl" />
+          <input type="password" placeholder="Nueva contraseña" value={recPwd}
+            onChange={e => setRecPwd(e.target.value)} required
+            className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border-b-2 border-[#9a9ab0] focus:border-[#c9a84c] outline-none transition-colors" />
+          {error && <p className="text-[#e74c3c] text-sm">{error}</p>}
+          <button type="submit" disabled={loading} className="w-full btn-gold disabled:opacity-60">
+            {loading ? 'Guardando...' : 'Cambiar contraseña'}
+          </button>
+          <button type="button" onClick={() => { setMode('forgot_email'); setError(''); setRecMsg(''); }}
+            className="w-full text-[#9a9ab0] text-sm hover:text-white transition-colors">
+            ← Reenviar código
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen barber-pole-bg bg-[#0a0a0f] flex items-center justify-center p-4">
       <div className="glass-card w-full max-w-md p-8">
-        <div className="flex flex-col items-center mb-8">
-          <ScissorsIcon className="w-16 h-16 text-[#c9a84c] mb-4" />
-          <h1 className="text-3xl font-bold text-[#c9a84c] mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-            BARBER VES
-          </h1>
-          <p className="text-[#9a9ab0] text-sm">Sistema de Control Interno</p>
-        </div>
-
+        {header}
         <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="email"
-            placeholder="Correo electrónico"
-            value={email}
+          <input type="email" placeholder="Correo electrónico" value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border-b-2 border-[#9a9ab0] focus:border-[#c9a84c] outline-none transition-colors"
-            required
-          />
+            required />
           <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Contraseña"
-              value={password}
+            <input type={showPassword ? 'text' : 'password'} placeholder="Contraseña" value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border-b-2 border-[#9a9ab0] focus:border-[#c9a84c] outline-none transition-colors pr-12"
-              required
-            />
+              required />
             <button type="button" onClick={() => setShowPassword(!showPassword)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9a9ab0]">
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -102,15 +185,19 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, rol: string, nombre
             {loading ? 'Verificando...' : 'Iniciar Sesión'}
           </button>
         </form>
-        <p className="text-center text-[#9a9ab0] text-xs mt-8">Villa El Salvador, Lima 2026</p>
+        <button onClick={() => { setMode('forgot_email'); setError(''); }}
+          className="w-full text-[#9a9ab0] text-sm hover:text-[#c9a84c] transition-colors mt-4">
+          ¿Olvidaste tu contraseña?
+        </button>
+        <p className="text-center text-[#9a9ab0] text-xs mt-6">Villa El Salvador, Lima 2026</p>
       </div>
     </div>
   );
 }
 
 // ─── Admin layout ─────────────────────────────────────────────────────────────
-function AdminView({ nombre, screen, setScreen, onLogout }: {
-  nombre: string; screen: Screen; setScreen: (s: Screen) => void; onLogout: () => void;
+function AdminView({ nombre, screen, setScreen, onLogout, onAuthUpdate }: {
+  nombre: string; screen: Screen; setScreen: (s: Screen) => void; onLogout: () => void; onAuthUpdate: () => void;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [alertas, setAlertas] = useState<ApiInsumo[]>([]);
@@ -124,7 +211,7 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
   });
 
   useEffect(() => {
-    api.get<ApiInsumo[]>('/api/insumos/alertas').then(setAlertas).catch(console.error);
+    api.get<ApiInsumo[]>('/api/insumos/alertas').then(data => setAlertas(data ?? [])).catch(console.error);
   }, []);
 
   const unreadCount = alertas.filter(a => !seenIds.has(a.id)).length;
@@ -140,10 +227,27 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
     setShowBell(v => !v);
   };
 
-  const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'caja', label: 'Caja', icon: <DollarSign className="w-5 h-5" /> },
-    { id: 'inventory', label: 'Inventario', icon: <Package className="w-5 h-5" /> },
+  const navGroups: { label: string; items: { id: Screen; label: string; icon: React.ReactNode }[] }[] = [
+    {
+      label: 'PRINCIPAL',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { id: 'barberos', label: 'Admin. Barberos', icon: <Users className="w-5 h-5" /> },
+      ],
+    },
+    {
+      label: 'GESTIÓN',
+      items: [
+        { id: 'insumos', label: 'Insumos', icon: <Package className="w-5 h-5" /> },
+        { id: 'pagos', label: 'Pagos', icon: <DollarSign className="w-5 h-5" /> },
+      ],
+    },
+    {
+      label: 'REPORTES',
+      items: [
+        { id: 'reportes', label: 'Reporte', icon: <BarChart2 className="w-5 h-5" /> },
+      ],
+    },
   ];
 
   const SidebarContent = () => (
@@ -157,22 +261,36 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
           </div>
         </div>
       </div>
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => (
-          <button key={item.id}
-            onClick={() => { setScreen(item.id); setSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              screen === item.id ? 'bg-[#c9a84c] text-[#0a0a0f]' : 'text-[#9a9ab0] hover:bg-[#12121a]'
-            }`}>
-            {item.icon}
-            <span className="font-medium">{item.label}</span>
-          </button>
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label} className="mb-3">
+            <p className="text-[#9a9ab0]/50 text-[10px] font-bold tracking-widest px-4 py-2">{group.label}</p>
+            {group.items.map((item) => (
+              <button key={item.id}
+                onClick={() => { setScreen(item.id); setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${
+                  screen === item.id ? 'bg-[#c9a84c] text-[#0a0a0f]' : 'text-[#9a9ab0] hover:bg-[#12121a]'
+                }`}>
+                {item.icon}
+                <span className="font-medium text-sm">{item.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
-        <button onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[#9a9ab0] hover:bg-[#8b0000] hover:text-white transition-all">
-          <LogOut className="w-5 h-5" />
-          <span className="font-medium">Cerrar Sesión</span>
-        </button>
+        <div className="pt-2 border-t border-[#c9a84c]/20">
+          <button onClick={() => { setScreen('configuracion'); setSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all mb-1 ${
+              screen === 'configuracion' ? 'bg-[#c9a84c] text-[#0a0a0f]' : 'text-[#9a9ab0] hover:bg-[#12121a]'
+            }`}>
+            <Settings className="w-5 h-5" />
+            <span className="font-medium text-sm">Configuración</span>
+          </button>
+          <button onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-[#9a9ab0] hover:bg-[#8b0000] hover:text-white transition-all">
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium text-sm">Cerrar Sesión</span>
+          </button>
+        </div>
       </nav>
       <div className="p-4 border-t border-[#c9a84c]/20">
         <div className="flex items-center gap-3">
@@ -201,7 +319,7 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
           </div>
         </div>
       )}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0d0d14] border-b border-[#c9a84c]/20">
           <button onClick={() => setSidebarOpen(true)} className="text-[#c9a84c]">
             <Menu className="w-6 h-6" />
@@ -244,24 +362,226 @@ function AdminView({ nombre, screen, setScreen, onLogout }: {
             </div>
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
-          {screen === 'dashboard' && <DashboardScreen nombre={nombre} />}
-          {screen === 'caja' && <CajaScreen />}
-          {screen === 'inventory' && <InventoryScreen />}
+        <div className="flex-1 overflow-auto min-h-0">
+          {screen === 'dashboard' && <DashboardScreen nombre={nombre} alertas={alertas} />}
+          {screen === 'barberos' && <BarberosAdminScreen />}
+          {screen === 'insumos' && <InventoryScreen />}
+          {screen === 'pagos' && <CajaScreen />}
+          {screen === 'reportes' && <ReporteScreen />}
+          {screen === 'configuracion' && <ConfiguracionScreen onLogout={onLogout} onAuthUpdate={onAuthUpdate} />}
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Configuración ────────────────────────────────────────────────────────────
+type ConfigSection = 'email' | 'password' | 'recuperar';
+
+function ConfiguracionScreen({ onLogout, onAuthUpdate }: { onLogout: () => void; onAuthUpdate: () => void }) {
+  const auth = getAuth();
+  const [currentEmail, setCurrentEmail] = useState(auth?.email ?? '');
+  const nombre = auth?.nombre ?? '';
+  const [section, setSection] = useState<ConfigSection>('email');
+
+  // Cambiar email
+  const [emailForm, setEmailForm] = useState({ nuevoEmail: '', contrasenaActual: '' });
+  const [emailMsg, setEmailMsg] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  // Cambiar contraseña
+  const [pwForm, setPwForm] = useState({ contrasenaActual: '', nuevaContrasena: '', confirmar: '' });
+  const [pwMsg, setPwMsg] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  // Recuperar contraseña
+  const [recStep, setRecStep] = useState<'send' | 'code'>('send');
+  const [recForm, setRecForm] = useState({ codigo: '', nuevaContrasena: '', confirmar: '' });
+  const [recMsg, setRecMsg] = useState('');
+  const [recLoading, setRecLoading] = useState(false);
+
+  const handleCambiarEmail = async () => {
+    if (!emailForm.nuevoEmail || !emailForm.contrasenaActual) return;
+    setEmailLoading(true); setEmailMsg('');
+    try {
+      const res = await api.put<{ token: string; rol: string; nombre: string; email: string }>(
+        '/api/perfil/email', undefined, { nuevoEmail: emailForm.nuevoEmail, contrasenaActual: emailForm.contrasenaActual }
+      );
+      setAuth(res.token, res.rol, res.nombre, res.email);
+      onAuthUpdate();
+      setCurrentEmail(res.email);
+      setEmailForm({ nuevoEmail: '', contrasenaActual: '' });
+      setEmailMsg('✓ Correo actualizado correctamente');
+    } catch (err: unknown) {
+      setEmailMsg((err as Error).message);
+    } finally { setEmailLoading(false); }
+  };
+
+  const handleCambiarPassword = async () => {
+    if (!pwForm.contrasenaActual || !pwForm.nuevaContrasena) return;
+    if (pwForm.nuevaContrasena !== pwForm.confirmar) { setPwMsg('Las contraseñas no coinciden'); return; }
+    setPwLoading(true); setPwMsg('');
+    try {
+      await api.put('/api/perfil/password', undefined, { contrasenaActual: pwForm.contrasenaActual, nuevaContrasena: pwForm.nuevaContrasena });
+      setPwMsg('✓ Contraseña actualizada correctamente');
+      setPwForm({ contrasenaActual: '', nuevaContrasena: '', confirmar: '' });
+    } catch (err: unknown) {
+      setPwMsg((err as Error).message);
+    } finally { setPwLoading(false); }
+  };
+
+  const handleEnviarCodigo = async () => {
+    setRecLoading(true); setRecMsg('');
+    try {
+      await api.post('/api/auth/enviar-codigo-recuperacion', { email: currentEmail });
+      setRecStep('code');
+      setRecMsg('Código enviado. Revisa tu correo (válido 15 min).');
+    } catch (err: unknown) {
+      setRecMsg((err as Error).message);
+    } finally { setRecLoading(false); }
+  };
+
+  const handleRecuperar = async () => {
+    if (!recForm.codigo || !recForm.nuevaContrasena) return;
+    if (recForm.nuevaContrasena !== recForm.confirmar) { setRecMsg('Las contraseñas no coinciden'); return; }
+    setRecLoading(true); setRecMsg('');
+    try {
+      await api.post('/api/auth/restablecer-password', undefined, {
+        email: currentEmail, codigo: recForm.codigo, nuevaContrasena: recForm.nuevaContrasena,
+      });
+      setRecMsg('✓ Contraseña restablecida. Cerrando sesión...');
+      setTimeout(onLogout, 2000);
+    } catch (err: unknown) {
+      setRecMsg((err as Error).message);
+    } finally { setRecLoading(false); }
+  };
+
+  const inputCls = 'w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none';
+
+  const sections: { id: ConfigSection; label: string }[] = [
+    { id: 'email', label: 'Cambiar correo' },
+    { id: 'password', label: 'Cambiar contraseña' },
+    { id: 'recuperar', label: 'Olvidé mi contraseña' },
+  ];
+
+  return (
+    <div className="p-4 md:p-8 max-w-2xl mx-auto">
+      <h2 className="text-xl md:text-2xl font-bold text-white mb-1">Configuración</h2>
+      <p className="text-[#9a9ab0] text-sm mb-6">Administra los datos de tu cuenta</p>
+
+      {/* Perfil */}
+      <div className="glass-card p-5 mb-6 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-xl flex-shrink-0">
+          {nombre.charAt(0)}
+        </div>
+        <div>
+          <p className="text-white font-semibold text-base">{nombre}</p>
+          <p className="text-[#9a9ab0] text-sm">{currentEmail}</p>
+          <p className="text-[#c9a84c]/70 text-xs mt-1">Administrador</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {sections.map(s => (
+          <button key={s.id} onClick={() => { setSection(s.id); setEmailMsg(''); setPwMsg(''); setRecMsg(''); }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+              section === s.id ? 'bg-[#c9a84c] text-[#0a0a0f]' : 'bg-[#12121a] text-[#9a9ab0] hover:text-white'
+            }`}>
+            {s.label}
+            {section === s.id && <ChevronRight className="w-3 h-3" />}
+          </button>
+        ))}
+      </div>
+
+      {/* Cambiar correo */}
+      {section === 'email' && (
+        <div className="glass-card p-6 space-y-4">
+          <div>
+            <h3 className="text-white font-semibold mb-1">Cambiar correo electrónico</h3>
+            <p className="text-[#9a9ab0] text-xs">Correo actual: <span className="text-white">{currentEmail}</span></p>
+          </div>
+          <input type="email" placeholder="Nuevo correo electrónico" value={emailForm.nuevoEmail}
+            onChange={e => setEmailForm({ ...emailForm, nuevoEmail: e.target.value })} className={inputCls} />
+          <input type="password" placeholder="Contraseña actual (para confirmar)" value={emailForm.contrasenaActual}
+            onChange={e => setEmailForm({ ...emailForm, contrasenaActual: e.target.value })} className={inputCls} />
+          {emailMsg && <p className={`text-sm ${emailMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{emailMsg}</p>}
+          <button onClick={handleCambiarEmail} disabled={emailLoading || !emailForm.nuevoEmail || !emailForm.contrasenaActual}
+            className="w-full btn-gold disabled:opacity-50">
+            {emailLoading ? 'Guardando...' : 'Actualizar correo'}
+          </button>
+        </div>
+      )}
+
+      {/* Cambiar contraseña */}
+      {section === 'password' && (
+        <div className="glass-card p-6 space-y-4">
+          <h3 className="text-white font-semibold">Cambiar contraseña</h3>
+          <input type="password" placeholder="Contraseña actual" value={pwForm.contrasenaActual}
+            onChange={e => setPwForm({ ...pwForm, contrasenaActual: e.target.value })} className={inputCls} />
+          <input type="password" placeholder="Nueva contraseña" value={pwForm.nuevaContrasena}
+            onChange={e => setPwForm({ ...pwForm, nuevaContrasena: e.target.value })} className={inputCls} />
+          <input type="password" placeholder="Confirmar nueva contraseña" value={pwForm.confirmar}
+            onChange={e => setPwForm({ ...pwForm, confirmar: e.target.value })} className={inputCls} />
+          {pwMsg && <p className={`text-sm ${pwMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>{pwMsg}</p>}
+          <button onClick={handleCambiarPassword}
+            disabled={pwLoading || !pwForm.contrasenaActual || !pwForm.nuevaContrasena || !pwForm.confirmar}
+            className="w-full btn-gold disabled:opacity-50">
+            {pwLoading ? 'Guardando...' : 'Cambiar contraseña'}
+          </button>
+        </div>
+      )}
+
+      {/* Recuperar contraseña */}
+      {section === 'recuperar' && (
+        <div className="glass-card p-6 space-y-4">
+          <div>
+            <h3 className="text-white font-semibold mb-1">Recuperar contraseña</h3>
+            <p className="text-[#9a9ab0] text-xs">Usa esta opción si no recuerdas tu contraseña actual.</p>
+          </div>
+          {recStep === 'send' ? (
+            <>
+              <p className="text-[#9a9ab0] text-sm">
+                Se enviará un código de verificación a: <span className="text-white">{currentEmail}</span>
+              </p>
+              {recMsg && <p className="text-red-400 text-sm">{recMsg}</p>}
+              <button onClick={handleEnviarCodigo} disabled={recLoading} className="w-full btn-gold disabled:opacity-50">
+                {recLoading ? 'Enviando...' : 'Enviar código al correo'}
+              </button>
+            </>
+          ) : (
+            <>
+              {recMsg && <p className={`text-sm ${recMsg.startsWith('✓') ? 'text-green-400' : 'text-[#9a9ab0]'}`}>{recMsg}</p>}
+              <input type="text" placeholder="Código de 6 dígitos" value={recForm.codigo}
+                onChange={e => setRecForm({ ...recForm, codigo: e.target.value })} className={inputCls} />
+              <input type="password" placeholder="Nueva contraseña" value={recForm.nuevaContrasena}
+                onChange={e => setRecForm({ ...recForm, nuevaContrasena: e.target.value })} className={inputCls} />
+              <input type="password" placeholder="Confirmar nueva contraseña" value={recForm.confirmar}
+                onChange={e => setRecForm({ ...recForm, confirmar: e.target.value })} className={inputCls} />
+              {recMsg && recMsg.startsWith('Las') && <p className="text-red-400 text-sm">{recMsg}</p>}
+              <button onClick={handleRecuperar} disabled={recLoading || !recForm.codigo || !recForm.nuevaContrasena || !recForm.confirmar}
+                className="w-full btn-gold disabled:opacity-50">
+                {recLoading ? 'Guardando...' : 'Restablecer contraseña'}
+              </button>
+              <button onClick={() => { setRecStep('send'); setRecMsg(''); setRecForm({ codigo: '', nuevaContrasena: '', confirmar: '' }); }}
+                className="w-full text-[#9a9ab0] text-sm hover:text-white transition-colors py-1">
+                Reenviar código
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-function DashboardScreen({ nombre }: { nombre: string }) {
-  const [activeTab, setActiveTab] = useState<'resumen' | 'cola' | 'barberos' | 'servicios'>('resumen');
+function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsumo[] }) {
+  const [activeTab, setActiveTab] = useState<'resumen' | 'cola' | 'servicios'>('resumen');
   const [barberos, setBarberos] = useState<ApiBarbero[]>([]);
   const [turnos, setTurnos] = useState<ApiTurno[]>([]);
   const [servicios, setServicios] = useState<ApiServicio[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
-  const [alertas, setAlertas] = useState<ApiInsumo[]>([]);
   const [showBell, setShowBell] = useState(false);
   const [seenIds, setSeenIds] = useState<Set<number>>(() => {
     try {
@@ -277,20 +597,19 @@ function DashboardScreen({ nombre }: { nombre: string }) {
       api.get<ApiTurno[]>('/api/turnos'),
       api.get<ApiServicio[]>('/api/servicios'),
       api.get<ApiTransaccion[]>('/api/caja/transacciones'),
-      api.get<ApiInsumo[]>('/api/insumos/alertas'),
-    ]).then(([b, t, s, tr, al]) => {
+    ]).then(([b, t, s, tr]) => {
       setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
-      setTransacciones(tr ?? []); setAlertas(al ?? []);
-      try { sessionStorage.setItem('cache_admin', JSON.stringify({ b, t, s, tr, al })); } catch {}
+      setTransacciones(tr ?? []);
+      try { sessionStorage.setItem('cache_admin', JSON.stringify({ b, t, s, tr })); } catch {}
     }).catch(console.error);
 
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem('cache_admin');
       if (raw) {
-        const { b, t, s, tr, al } = JSON.parse(raw);
+        const { b, t, s, tr } = JSON.parse(raw);
         setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
-        setTransacciones(tr ?? []); setAlertas(al ?? []);
+        setTransacciones(tr ?? []);
       }
     } catch {}
     refresh();
@@ -329,7 +648,6 @@ function DashboardScreen({ nombre }: { nombre: string }) {
   const tabs = [
     { id: 'resumen', label: 'Resumen' },
     { id: 'cola', label: 'Cola de Turnos' },
-    { id: 'barberos', label: 'Barberos' },
     { id: 'servicios', label: 'Servicios' },
   ] as const;
 
@@ -390,9 +708,6 @@ function DashboardScreen({ nombre }: { nombre: string }) {
       {activeTab === 'cola' && (
         <ColaTab turnos={turnos} barberos={barberos} servicios={servicios}
           onRefresh={refresh} />
-      )}
-      {activeTab === 'barberos' && (
-        <BarberosTab barberos={barberos} onRefresh={refresh} />
       )}
       {activeTab === 'servicios' && (
         <ServiciosTab servicios={servicios} onRefresh={refresh} />
@@ -598,6 +913,9 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ nombre: '', email: '', telefono: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
+  const [editBarbero, setEditBarbero] = useState<ApiBarbero | null>(null);
+  const [editForm, setEditForm] = useState({ nombre: '', telefono: '' });
+  const [editLoading, setEditLoading] = useState(false);
   const [pwdBarbero, setPwdBarbero] = useState<ApiBarbero | null>(null);
   const [pwdForm, setPwdForm] = useState({ password: '', confirm: '' });
   const [pwdLoading, setPwdLoading] = useState(false);
@@ -628,7 +946,27 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
     }
   };
 
+  const openEdit = (b: ApiBarbero) => {
+    setEditBarbero(b);
+    setEditForm({ nombre: b.nombre, telefono: b.telefono });
+  };
+
+  const handleEdit = async () => {
+    if (!editBarbero || !editForm.nombre || !editForm.telefono) return;
+    setEditLoading(true);
+    try {
+      await api.put(`/api/barberos/${editBarbero.id}`, { nombre: editForm.nombre, telefono: editForm.telefono });
+      setEditBarbero(null);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleAdd = async () => {
+    if (form.password.length < 6) { alert('La contraseña debe tener mínimo 6 caracteres'); return; }
     if (form.password !== form.confirm) { alert('Las contraseñas no coinciden'); return; }
     if (!form.nombre || !form.email || !form.telefono || !form.password) return;
     setLoading(true);
@@ -701,6 +1039,11 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
                 className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all text-sm">
                 {b.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
               </button>
+              <button onClick={() => openEdit(b)}
+                className="p-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all"
+                title="Editar barbero">
+                <Edit2 className="w-4 h-4" />
+              </button>
               <button onClick={() => openChangePwd(b)}
                 className="p-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all"
                 title="Cambiar contraseña">
@@ -733,16 +1076,74 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
                 { ph: 'Nombre completo', key: 'nombre', type: 'text' },
                 { ph: 'Correo electrónico', key: 'email', type: 'email' },
                 { ph: 'Teléfono', key: 'telefono', type: 'tel' },
-                { ph: 'Contraseña', key: 'password', type: 'password' },
-                { ph: 'Confirmar contraseña', key: 'confirm', type: 'password' },
               ].map(({ ph, key, type }) => (
                 <input key={key} type={type} placeholder={ph} value={form[key as keyof typeof form]}
                   onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                   className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
               ))}
-              <button onClick={handleAdd} disabled={loading || !form.nombre || !form.email || !form.telefono || !form.password}
+              <input type="password" placeholder="Contraseña" value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                className={`w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border outline-none transition-colors ${
+                  form.password.length > 0 && form.password.length < 6 ? 'border-[#e74c3c]' : 'border-[#9a9ab0] focus:border-[#c9a84c]'
+                }`} />
+              {form.password.length > 0 && form.password.length < 6 && (
+                <p className="text-[#e74c3c] text-xs -mt-2">Mínimo 6 caracteres</p>
+              )}
+              <input type="password" placeholder="Confirmar contraseña" value={form.confirm}
+                onChange={e => setForm({ ...form, confirm: e.target.value })}
+                className={`w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border outline-none transition-colors ${
+                  form.confirm.length > 0 && form.password !== form.confirm ? 'border-[#e74c3c]'
+                  : form.confirm.length > 0 && form.password === form.confirm ? 'border-[#00c896]'
+                  : 'border-[#9a9ab0] focus:border-[#c9a84c]'
+                }`} />
+              {form.confirm.length > 0 && form.password !== form.confirm && (
+                <p className="text-[#e74c3c] text-xs -mt-2">Las contraseñas no coinciden</p>
+              )}
+              {form.confirm.length > 0 && form.password === form.confirm && form.password.length >= 6 && (
+                <p className="text-[#00c896] text-xs -mt-2">Contraseñas coinciden ✓</p>
+              )}
+              <button onClick={handleAdd}
+                disabled={loading || !form.nombre || !form.email || !form.telefono || form.password.length < 6 || form.password !== form.confirm}
                 className="w-full btn-gold disabled:opacity-50">
                 {loading ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editBarbero && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="glass-card w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#c9a84c]">Editar Barbero</h2>
+              <button onClick={() => setEditBarbero(null)} className="text-[#9a9ab0] hover:text-white"><X className="w-6 h-6" /></button>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[#0a0a0f] mb-5">
+              <div className="w-10 h-10 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold flex-shrink-0">
+                {editForm.nombre.charAt(0) || editBarbero.nombre.charAt(0)}
+              </div>
+              <p className="text-[#9a9ab0] text-sm">{editBarbero.usuario.email}</p>
+            </div>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Nombre completo"
+                value={editForm.nombre}
+                onChange={e => setEditForm({ ...editForm, nombre: e.target.value })}
+                className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none"
+              />
+              <input
+                type="tel"
+                placeholder="Teléfono"
+                value={editForm.telefono}
+                onChange={e => setEditForm({ ...editForm, telefono: e.target.value })}
+                className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none"
+              />
+              <button onClick={handleEdit}
+                disabled={editLoading || !editForm.nombre || !editForm.telefono}
+                className="w-full btn-gold disabled:opacity-50">
+                {editLoading ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </div>
           </div>
@@ -822,13 +1223,57 @@ function BarberosTab({ barberos, onRefresh }: { barberos: ApiBarbero[]; onRefres
 }
 
 // ─── Servicios tab ────────────────────────────────────────────────────────────
+type ServicioForm = { nombre: string; precio: string; descripcion: string };
+
+function ServicioFormFields({ f, setF }: { f: ServicioForm; setF: (v: ServicioForm) => void }) {
+  return (
+    <div className="space-y-4">
+      <input type="text" placeholder="Nombre del servicio" value={f.nombre}
+        onChange={(e) => setF({ ...f, nombre: e.target.value })}
+        className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
+      <input type="number" step="0.01" placeholder="Precio (S/.)" value={f.precio}
+        onChange={(e) => setF({ ...f, precio: e.target.value })}
+        className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
+      <input type="text" placeholder="Descripción (opcional)" value={f.descripcion}
+        onChange={(e) => setF({ ...f, descripcion: e.target.value })}
+        className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
+    </div>
+  );
+}
+
 function ServiciosTab({ servicios, onRefresh }: {
   servicios: ApiServicio[];
   onRefresh: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ nombre: '', precio: '', descripcion: '' });
+  const [form, setForm] = useState<ServicioForm>({ nombre: '', precio: '', descripcion: '' });
   const [loading, setLoading] = useState(false);
+  const [editServicio, setEditServicio] = useState<ApiServicio | null>(null);
+  const [editForm, setEditForm] = useState<ServicioForm>({ nombre: '', precio: '', descripcion: '' });
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEdit = (s: ApiServicio) => {
+    setEditServicio(s);
+    setEditForm({ nombre: s.nombre, precio: String(s.precio), descripcion: s.descripcion || '' });
+  };
+
+  const handleEdit = async () => {
+    if (!editServicio || !editForm.nombre || !editForm.precio) return;
+    setEditLoading(true);
+    try {
+      await api.put(`/api/servicios/${editServicio.id}`, {
+        nombre: editForm.nombre,
+        precio: editForm.precio,
+        descripcion: editForm.descripcion,
+      });
+      setEditServicio(null);
+      onRefresh();
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!form.nombre || !form.precio) return;
@@ -874,9 +1319,14 @@ function ServiciosTab({ servicios, onRefresh }: {
           <div key={s.id} className="glass-card p-4">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-white font-bold">{s.nombre}</h3>
-              <button onClick={() => deleteServicio(s.id)} className="text-[#e74c3c] hover:text-white transition-colors">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => openEdit(s)} className="text-[#c9a84c] hover:text-white transition-colors" title="Editar">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => deleteServicio(s.id)} className="text-[#e74c3c] hover:text-white transition-colors" title="Eliminar">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <p className="text-[#c9a84c] text-xl font-bold mb-1">S/. {Number(s.precio).toFixed(2)}</p>
             {s.descripcion && <p className="text-[#9a9ab0] text-sm mb-2">{s.descripcion}</p>}
@@ -896,21 +1346,27 @@ function ServiciosTab({ servicios, onRefresh }: {
               <h2 className="text-xl font-bold text-[#c9a84c]">Agregar Servicio</h2>
               <button onClick={() => setShowAdd(false)} className="text-[#9a9ab0]"><X className="w-6 h-6" /></button>
             </div>
-            <div className="space-y-4">
-              <input type="text" placeholder="Nombre del servicio" value={form.nombre}
-                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
-              <input type="number" step="0.01" placeholder="Precio (S/.)" value={form.precio}
-                onChange={(e) => setForm({ ...form, precio: e.target.value })}
-                className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
-              <input type="text" placeholder="Descripción (opcional)" value={form.descripcion}
-                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
-              <button onClick={handleAdd} disabled={loading || !form.nombre || !form.precio}
-                className="w-full btn-gold disabled:opacity-50">
-                {loading ? 'Guardando...' : 'Guardar'}
-              </button>
+            <ServicioFormFields f={form} setF={setForm} />
+            <button onClick={handleAdd} disabled={loading || !form.nombre || !form.precio}
+              className="w-full btn-gold disabled:opacity-50 mt-4">
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editServicio && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="glass-card w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#c9a84c]">Editar Servicio</h2>
+              <button onClick={() => setEditServicio(null)} className="text-[#9a9ab0]"><X className="w-6 h-6" /></button>
             </div>
+            <ServicioFormFields f={editForm} setF={setEditForm} />
+            <button onClick={handleEdit} disabled={editLoading || !editForm.nombre || !editForm.precio}
+              className="w-full btn-gold disabled:opacity-50 mt-4">
+              {editLoading ? 'Guardando...' : 'Guardar cambios'}
+            </button>
           </div>
         </div>
       )}
@@ -923,9 +1379,12 @@ function CajaScreen() {
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
   const [closing, setClosing] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
 
   const load = () => api.get<ApiTransaccion[]>('/api/caja/transacciones').then(setTransacciones).catch(console.error);
   useEffect(() => { load(); }, []);
+
+  const isSunday = new Date().getDay() === 0;
 
   const byMethod: Record<string, number> = {};
   let total = 0;
@@ -947,10 +1406,27 @@ function CajaScreen() {
       await api.post('/api/caja/cierre');
       setMensaje('Caja cerrada. Se envió el resumen al correo del administrador.');
       load();
+      try { await downloadExcel(); } catch { /* silently skip if excel fails */ }
     } catch (err: unknown) {
       alert((err as Error).message);
     } finally {
       setClosing(false);
+    }
+  };
+
+  const handleReporteSemanal = async () => {
+    setWeeklyLoading(true);
+    try {
+      const hoy = new Date();
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() - 6);
+      const desde = lunes.toISOString().slice(0, 10);
+      const hasta = hoy.toISOString().slice(0, 10);
+      await downloadExcel(desde, hasta);
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    } finally {
+      setWeeklyLoading(false);
     }
   };
 
@@ -961,7 +1437,14 @@ function CajaScreen() {
       <div className="max-w-lg mx-auto glass-card p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <h2 className="text-lg font-bold text-[#c9a84c]">Resumen del Día</h2>
-          <div className="flex gap-2 self-end sm:self-auto">
+          <div className="flex flex-wrap gap-2 self-end sm:self-auto">
+            {isSunday && (
+              <button onClick={handleReporteSemanal} disabled={weeklyLoading}
+                className="px-3 py-2 rounded-lg bg-purple-900/60 text-purple-300 hover:bg-purple-700 hover:text-white transition-all flex items-center gap-2 text-sm disabled:opacity-50">
+                <Download className="w-4 h-4" />
+                {weeklyLoading ? '...' : 'Reporte Semanal'}
+              </button>
+            )}
             <button onClick={handleExport}
               className="px-3 py-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all flex items-center gap-2 text-sm">
               <Download className="w-4 h-4" />
@@ -1215,18 +1698,171 @@ function InventoryScreen() {
   );
 }
 
-// ─── Barber view (mobile) ─────────────────────────────────────────────────────
+// ─── Barberos Admin screen ────────────────────────────────────────────────────
+function BarberosAdminScreen() {
+  const [barberos, setBarberos] = useState<ApiBarbero[]>([]);
+  const refresh = () =>
+    api.get<ApiBarbero[]>('/api/barberos').then(d => setBarberos(d ?? [])).catch(console.error);
+  useEffect(() => { refresh(); }, []);
+  return (
+    <div className="p-4 md:p-8">
+      <h1 className="text-xl md:text-2xl font-bold text-white mb-6 md:mb-8">Administración de Barberos</h1>
+      <BarberosTab barberos={barberos} onRefresh={refresh} />
+    </div>
+  );
+}
+
+// ─── Reporte screen ───────────────────────────────────────────────────────────
+function ReporteScreen() {
+  const [reportes, setReportes] = useState<ApiReporte[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mesSeleccionado, setMesSeleccionado] = useState('');
+  const [descargandoMes, setDescargandoMes] = useState(false);
+
+  useEffect(() => {
+    api.get<ApiReporte[]>('/api/caja/reportes')
+      .then(d => setReportes(d ?? []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Genera lista de meses únicos presentes en los reportes + mes actual
+  const mesesDisponibles = (() => {
+    const set = new Set<string>();
+    const hoy = new Date();
+    set.add(`${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`);
+    for (const r of reportes) {
+      const [year, month] = r.fecha.split('-');
+      set.add(`${year}-${month}`);
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  })();
+
+  const fmtMes = (ym: string) => {
+    const [y, m] = ym.split('-');
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+  };
+
+  const handleDescargarMes = async () => {
+    const ym = mesSeleccionado || mesesDisponibles[0];
+    if (!ym) return;
+    const [y, m] = ym.split('-').map(Number);
+    const desde = `${y}-${String(m).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const hasta = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
+    setDescargandoMes(true);
+    try {
+      await downloadExcel(desde, hasta);
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    } finally {
+      setDescargandoMes(false);
+    }
+  };
+
+  const fmt = (n: number) => `S/. ${Number(n).toFixed(2)}`;
+  const fmtFecha = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-PE', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+  });
+
+  const mesActivo = mesSeleccionado || mesesDisponibles[0] || '';
+  const reportesFiltrados = reportes.filter(r => r.fecha.startsWith(mesActivo));
+  const totalMes = reportesFiltrados.reduce((acc, r) => acc + Number(r.totalGeneral), 0);
+
+  return (
+    <div className="p-4 md:p-8">
+      <h1 className="text-xl md:text-2xl font-bold text-white mb-6 md:mb-8">Historial de Cierres de Caja</h1>
+
+      {loading && <p className="text-[#9a9ab0] text-center py-12">Cargando reportes...</p>}
+
+      {!loading && reportes.length === 0 && (
+        <div className="glass-card p-12 text-center">
+          <BarChart2 className="w-16 h-16 text-[#9a9ab0] mx-auto mb-4" />
+          <p className="text-[#9a9ab0]">Aún no hay cierres de caja registrados.</p>
+          <p className="text-[#9a9ab0] text-sm mt-1">Usa el botón "Cerrar Caja" en la pantalla de Pagos.</p>
+        </div>
+      )}
+
+      {!loading && reportes.length > 0 && (
+        <>
+          {/* Selector de mes + descarga mensual */}
+          <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+            <select
+              value={mesActivo}
+              onChange={e => setMesSeleccionado(e.target.value)}
+              className="flex-1 bg-[#12121a] border border-[#9a9ab0]/30 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-[#c9a84c] transition-colors capitalize">
+              {mesesDisponibles.map(ym => (
+                <option key={ym} value={ym} className="capitalize">{fmtMes(ym)}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {reportesFiltrados.length > 0 && (
+                <p className="text-[#c9a84c] font-bold text-sm">
+                  Total: {fmt(totalMes)}
+                </p>
+              )}
+              <button onClick={handleDescargarMes} disabled={descargandoMes}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#c9a84c] text-[#0a0a0f] font-bold text-sm hover:bg-[#b8973b] transition-all disabled:opacity-50">
+                <Download className="w-4 h-4" />
+                {descargandoMes ? 'Descargando...' : 'Excel del Mes'}
+              </button>
+            </div>
+          </div>
+
+          {/* Reportes del mes seleccionado */}
+          {reportesFiltrados.length === 0 ? (
+            <div className="glass-card p-8 text-center">
+              <p className="text-[#9a9ab0]">No hay cierres registrados en {fmtMes(mesActivo)}.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reportesFiltrados.map((r) => (
+                <div key={r.id} className="glass-card p-4 md:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-white font-bold capitalize">{fmtFecha(r.fecha)}</p>
+                      <div className="flex flex-wrap gap-3 mt-2">
+                        <span className="text-[#9a9ab0] text-xs">Efectivo: <span className="text-white font-medium">{fmt(r.totalEfectivo)}</span></span>
+                        <span className="text-[#9a9ab0] text-xs">Yape: <span className="text-purple-400 font-medium">{fmt(r.totalYape)}</span></span>
+                        <span className="text-[#9a9ab0] text-xs">Plin: <span className="text-blue-400 font-medium">{fmt(r.totalPlin)}</span></span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                      <p className="text-[#c9a84c] text-xl font-bold">{fmt(r.totalGeneral)}</p>
+                      <button
+                        onClick={async () => { try { await downloadExcel(r.fecha, r.fecha); } catch (e: unknown) { alert((e as Error).message); } }}
+                        className="p-2 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all"
+                        title="Descargar Excel de este día">
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Barber view ──────────────────────────────────────────────────────────────
+type BarberScreen = 'cola' | 'insumos';
+
 function BarberView({ nombre, email, onLogout }: { nombre: string; email: string; onLogout: () => void }) {
   const [todosTurnos, setTodosTurnos] = useState<ApiTurno[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
   const [myBarbero, setMyBarbero] = useState<ApiBarbero | null>(null);
   const [insumos, setInsumos] = useState<ApiInsumo[]>([]);
   const [turnoActivo, setTurnoActivo] = useState<ApiTurno | null>(null);
-  const [tipoPago, setTipoPago] = useState<'EFECTIVO' | 'YAPE' | 'PLIN'>('EFECTIVO');
+  const [split, setSplit] = useState({ efectivo: '', yape: '', plin: '' });
   const [cobrandoId, setCobrandoId] = useState<number | null>(null);
   const [agotados, setAgotados] = useState<Set<number>>(new Set());
   const [showAgotados, setShowAgotados] = useState(false);
   const [cubrirTurno, setCubrirTurno] = useState<ApiTurno | null>(null);
+  const [barberScreen, setBarberScreen] = useState<BarberScreen>('cola');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const load = async () => {
     const [barberos, allTurnos, allTransacciones, allInsumos] = await Promise.all([
@@ -1293,11 +1929,17 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
     if (!turnoActivo) return;
     setCobrandoId(turnoActivo.id);
     try {
-      await api.post('/api/caja/cobrar', { idTurno: String(turnoActivo.id), tipoPago });
+      await api.post('/api/caja/cobrar-split', undefined, {
+        idTurno: turnoActivo.id,
+        efectivo: parseFloat(split.efectivo) || 0,
+        yape:     parseFloat(split.yape)     || 0,
+        plin:     parseFloat(split.plin)     || 0,
+      });
       for (const id of agotados) {
         await api.patch<ApiInsumo>(`/api/insumos/${id}/agotar`);
       }
       setTurnoActivo(null);
+      setSplit({ efectivo: '', yape: '', plin: '' });
       setAgotados(new Set());
       setShowAgotados(false);
       load();
@@ -1316,21 +1958,46 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
     totalHoy += t.monto;
   }
 
+  const navItems: { id: BarberScreen; label: string; icon: React.ReactNode }[] = [
+    { id: 'cola', label: 'Cola de Atención', icon: <Clipboard className="w-5 h-5" /> },
+    { id: 'insumos', label: 'Insumos', icon: <Package className="w-5 h-5" /> },
+  ];
+
   const currentDate = new Date().toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  const SidebarNav = ({ onSelect }: { onSelect?: () => void }) => (
+    <nav>
+      <p className="text-[#9a9ab0] text-xs font-semibold tracking-widest mb-2 px-2">BARBERO</p>
+      {navItems.map(item => (
+        <button key={item.id} onClick={() => { setBarberScreen(item.id); onSelect?.(); }}
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg mb-1 transition-all text-left ${
+            barberScreen === item.id ? 'bg-[#c9a84c]/20 text-[#c9a84c]' : 'text-[#9a9ab0] hover:bg-[#12121a] hover:text-white'
+          }`}>
+          {item.icon}
+          <span className="text-sm font-medium">{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-4 md:p-6 max-w-2xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-xl">
+    <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-[#9a9ab0]/10">
+        <button onClick={() => setSidebarOpen(true)}
+          className="md:hidden w-10 h-10 rounded-lg bg-[#12121a] flex items-center justify-center text-[#9a9ab0] hover:text-white transition-colors">
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="flex-1 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#c9a84c] hidden md:flex items-center justify-center text-[#0a0a0f] font-bold text-lg">
             {nombre.charAt(0)}
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg">Hola, {nombre}</h1>
-            <p className="text-[#9a9ab0] text-sm capitalize">{currentDate}</p>
+            <h1 className="text-white font-bold">Hola, {nombre}</h1>
+            <p className="text-[#9a9ab0] text-xs capitalize">{currentDate}</p>
           </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex items-center gap-2">
           {myBarbero && (
             <span className={myBarbero.estado === 'ACTIVO' ? 'badge-active' : 'badge-inactive'}>
               {myBarbero.estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
@@ -1342,179 +2009,282 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
         </div>
       </div>
 
-      {!myBarbero && (
-        <div className="glass-card p-6 mb-6 border border-[#e74c3c]">
-          <p className="text-[#e74c3c] text-center">No se encontró tu perfil de barbero. Contacta al administrador.</p>
-        </div>
-      )}
-
-      {/* Cola unificada del día */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-[#c9a84c] mb-4">Cola de Hoy</h2>
-        <div className="space-y-3">
-          {[...todosTurnos]
-            .filter(t => t.estado !== 'FINALIZADO')
-            .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
-            .map((turno, i) => {
-              const esMio = turno.barbero?.id === myBarbero?.id;
-              const esDeOtro = !!turno.barbero && !esMio;
-              const finalizado = turno.estado === 'FINALIZADO';
-
-              return (
-                <div key={turno.id} className={`glass-card p-4 ${finalizado ? 'opacity-50' : ''} ${esMio && !finalizado ? 'border border-[#00c896]/40' : ''}`}>
-                  <div className="flex items-center gap-4 mb-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm
-                      ${esMio && !finalizado ? 'bg-[#00c896] text-[#0a0a0f]' : finalizado ? 'bg-[#9a9ab0]/20 text-[#9a9ab0]' : 'bg-[#9a9ab0]/30 text-white'}`}>
-                      {finalizado ? <ScissorsIcon className="w-4 h-4" /> : i + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-white font-bold">{turno.nombreCliente}</h3>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        <span className="px-2 py-1 rounded-full bg-[#c9a84c]/20 text-[#c9a84c] text-xs border border-[#c9a84c]">
-                          {turno.servicio.nombre}
-                        </span>
-                        <span className="px-2 py-1 rounded-full bg-[#9a9ab0]/20 text-[#9a9ab0] text-xs">
-                          S/. {Number(turno.servicio.precio).toFixed(2)}
-                        </span>
-                      </div>
-                      {turno.barbero && (
-                        <p className={`text-xs mt-1 ${esMio ? 'text-[#00c896]' : 'text-[#9a9ab0]'}`}>
-                          {finalizado ? `Atendido por ${turno.barbero.nombre}` : esMio ? 'En tu atención' : `Asignado a ${turno.barbero.nombre}`}
-                        </p>
-                      )}
-                    </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
+            <div className="absolute left-0 top-0 bottom-0 w-64 bg-[#0f0f17] p-4 flex flex-col z-50">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-sm">
+                    {nombre.charAt(0)}
                   </div>
+                  <span className="text-white font-bold text-sm truncate max-w-[120px]">{nombre}</span>
+                </div>
+                <button onClick={() => setSidebarOpen(false)} className="text-[#9a9ab0] hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <SidebarNav onSelect={() => setSidebarOpen(false)} />
+            </div>
+          </div>
+        )}
 
-                  {!finalizado && !turno.barbero && (
-                    <button onClick={() => asignarme(turno)}
-                      className="w-full bg-[#c9a84c] text-[#0a0a0f] font-bold py-3 rounded-lg hover:bg-[#b8973b] transition-all">
-                      Atender
-                    </button>
-                  )}
+        {/* Desktop sidebar */}
+        <aside className="hidden md:flex flex-col w-56 bg-[#0f0f17] border-r border-[#9a9ab0]/10 p-4 flex-shrink-0">
+          <SidebarNav />
+        </aside>
 
-                  {!finalizado && esMio && (
-                    <>
-                      <button onClick={() => { setTurnoActivo(turno); setTipoPago('EFECTIVO'); }}
-                        className="w-full bg-[#00c896] text-white font-bold py-3 rounded-lg hover:bg-[#00b087] transition-all">
-                        Marcar Finalizado
-                      </button>
-                      <p className="text-[#c9a84c] text-xs text-center mt-2 italic">Insumos descontados automáticamente</p>
-                    </>
-                  )}
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          {/* Cola de Atención */}
+          {barberScreen === 'cola' && (
+            <div className="p-4 md:p-6 max-w-2xl mx-auto">
+              {!myBarbero && (
+                <div className="glass-card p-6 mb-6 border border-[#e74c3c]">
+                  <p className="text-[#e74c3c] text-center">No se encontró tu perfil de barbero. Contacta al administrador.</p>
+                </div>
+              )}
 
-                  {!finalizado && esDeOtro && (
-                    <button onClick={() => setCubrirTurno(turno)}
-                      className="w-full mt-1 py-2 rounded-lg border border-[#9a9ab0]/40 text-[#9a9ab0] text-sm hover:border-[#c9a84c] hover:text-[#c9a84c] transition-all">
-                      Cubrir turno
-                    </button>
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-[#c9a84c] mb-4">Cola de Hoy</h2>
+                <div className="space-y-3">
+                  {[...todosTurnos]
+                    .filter(t => t.estado !== 'FINALIZADO')
+                    .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
+                    .map((turno, i) => {
+                      const esMio = turno.barbero?.id === myBarbero?.id;
+                      const esDeOtro = !!turno.barbero && !esMio;
+                      const finalizado = turno.estado === 'FINALIZADO';
+                      return (
+                        <div key={turno.id} className={`glass-card p-4 ${finalizado ? 'opacity-50' : ''} ${esMio && !finalizado ? 'border border-[#00c896]/40' : ''}`}>
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm
+                              ${esMio && !finalizado ? 'bg-[#00c896] text-[#0a0a0f]' : finalizado ? 'bg-[#9a9ab0]/20 text-[#9a9ab0]' : 'bg-[#9a9ab0]/30 text-white'}`}>
+                              {finalizado ? <ScissorsIcon className="w-4 h-4" /> : i + 1}
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-white font-bold">{turno.nombreCliente}</h3>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                <span className="px-2 py-1 rounded-full bg-[#c9a84c]/20 text-[#c9a84c] text-xs border border-[#c9a84c]">{turno.servicio.nombre}</span>
+                                <span className="px-2 py-1 rounded-full bg-[#9a9ab0]/20 text-[#9a9ab0] text-xs">S/. {Number(turno.servicio.precio).toFixed(2)}</span>
+                              </div>
+                              {turno.barbero && (
+                                <p className={`text-xs mt-1 ${esMio ? 'text-[#00c896]' : 'text-[#9a9ab0]'}`}>
+                                  {finalizado ? `Atendido por ${turno.barbero.nombre}` : esMio ? 'En tu atención' : `Asignado a ${turno.barbero.nombre}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {!finalizado && !turno.barbero && (
+                            <button onClick={() => asignarme(turno)}
+                              className="w-full bg-[#c9a84c] text-[#0a0a0f] font-bold py-3 rounded-lg hover:bg-[#b8973b] transition-all">
+                              Atender
+                            </button>
+                          )}
+                          {!finalizado && esMio && (
+                            <>
+                              <button onClick={() => { setTurnoActivo(turno); setSplit({ efectivo: '', yape: '', plin: '' }); }}
+                                className="w-full bg-[#00c896] text-white font-bold py-3 rounded-lg hover:bg-[#00b087] transition-all">
+                                Marcar Finalizado
+                              </button>
+                              <p className="text-[#c9a84c] text-xs text-center mt-2 italic">Insumos descontados automáticamente</p>
+                            </>
+                          )}
+                          {!finalizado && esDeOtro && (
+                            <button onClick={() => setCubrirTurno(turno)}
+                              className="w-full mt-1 py-2 rounded-lg border border-[#9a9ab0]/40 text-[#9a9ab0] text-sm hover:border-[#c9a84c] hover:text-[#c9a84c] transition-all">
+                              Cubrir turno
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {todosTurnos.filter(t => t.estado !== 'FINALIZADO').length === 0 && (
+                    <div className="glass-card p-8 text-center">
+                      <Users className="w-12 h-12 text-[#9a9ab0] mx-auto mb-3" />
+                      <p className="text-[#9a9ab0]">No hay clientes hoy</p>
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          {todosTurnos.filter(t => t.estado !== 'FINALIZADO').length === 0 && (
-            <div className="glass-card p-8 text-center">
-              <Users className="w-12 h-12 text-[#9a9ab0] mx-auto mb-3" />
-              <p className="text-[#9a9ab0]">No hay clientes hoy</p>
+              </div>
+
+              <div className="glass-card p-6">
+                <h2 className="text-xl font-bold text-[#c9a84c] mb-4">Mis Ingresos de Hoy</h2>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {[['Efectivo', 'efectivo'], ['Yape', 'yape'], ['Plin', 'plin']].map(([label, key]) => (
+                    <div key={key} className="bg-[#0a0a0f] p-3 rounded-lg">
+                      <p className="text-[#9a9ab0] text-xs mb-1">{label}</p>
+                      <p className="text-white font-bold text-sm">S/. {(byMethod[key] || 0).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-[#c9a84c] p-4 rounded-lg text-center">
+                  <p className="text-[#0a0a0f] text-sm mb-1">Total del Día</p>
+                  <p className="text-[#0a0a0f] text-3xl font-bold">S/. {totalHoy.toFixed(2)}</p>
+                </div>
+                <p className="text-[#9a9ab0] text-sm text-center mt-3">
+                  {transacciones.length > 0
+                    ? `${transacciones.length} servicio${transacciones.length > 1 ? 's' : ''} completado${transacciones.length > 1 ? 's' : ''}`
+                    : 'Buen trabajo hoy'}
+                </p>
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      <div className="glass-card p-6">
-        <h2 className="text-xl font-bold text-[#c9a84c] mb-4">Mis Ingresos de Hoy</h2>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {[['Efectivo', 'efectivo'], ['Yape', 'yape'], ['Plin', 'plin']].map(([label, key]) => (
-            <div key={key} className="bg-[#0a0a0f] p-3 rounded-lg">
-              <p className="text-[#9a9ab0] text-xs mb-1">{label}</p>
-              <p className="text-white font-bold text-sm">S/. {(byMethod[key] || 0).toFixed(2)}</p>
+          {/* Insumos (read-only) */}
+          {barberScreen === 'insumos' && (
+            <div className="p-4 md:p-6">
+              <h2 className="text-xl md:text-2xl font-bold text-white mb-6">Insumos</h2>
+              {insumos.length === 0 ? (
+                <div className="glass-card p-12 text-center">
+                  <Package className="w-16 h-16 text-[#9a9ab0] mx-auto mb-4" />
+                  <p className="text-[#9a9ab0]">No hay insumos registrados.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {insumos.map(ins => {
+                    const pct = ins.stockMinimo > 0 ? ins.stock / ins.stockMinimo : 1;
+                    const color = ins.stock === 0 ? '#e74c3c' : pct <= 1 ? '#f39c12' : '#00c896';
+                    return (
+                      <div key={ins.id} className="glass-card p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-white font-bold">{ins.nombre}</h3>
+                            <p className="text-[#9a9ab0] text-xs mt-0.5">{fmtUnidad(ins.unidad, ins.stock)}</p>
+                          </div>
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 mt-1 ml-2`} style={{ backgroundColor: color }} />
+                        </div>
+                        <div className="flex items-end justify-between">
+                          <div>
+                            <p className="text-2xl font-bold" style={{ color }}>{ins.stock}</p>
+                            <p className="text-[#9a9ab0] text-xs">{fmtUnidad(ins.unidad, ins.stock)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[#9a9ab0] text-xs">Mínimo</p>
+                            <p className="text-white text-sm font-medium">{ins.stockMinimo} {fmtUnidad(ins.unidad, ins.stockMinimo)}</p>
+                          </div>
+                        </div>
+                        {ins.stock === 0 && (
+                          <div className="mt-3 px-3 py-1.5 rounded-lg bg-[#e74c3c]/10 border border-[#e74c3c]/30 text-center">
+                            <p className="text-[#e74c3c] text-xs font-medium">Agotado</p>
+                          </div>
+                        )}
+                        {ins.stock > 0 && pct <= 1 && (
+                          <div className="mt-3 px-3 py-1.5 rounded-lg bg-[#f39c12]/10 border border-[#f39c12]/30 text-center">
+                            <p className="text-[#f39c12] text-xs font-medium">Stock bajo</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-        <div className="bg-[#c9a84c] p-4 rounded-lg text-center">
-          <p className="text-[#0a0a0f] text-sm mb-1">Total del Día</p>
-          <p className="text-[#0a0a0f] text-3xl font-bold">S/. {totalHoy.toFixed(2)}</p>
-        </div>
-        <p className="text-[#9a9ab0] text-sm text-center mt-3">
-          {transacciones.length > 0 ? `${transacciones.length} servicio${transacciones.length > 1 ? 's' : ''} completado${transacciones.length > 1 ? 's' : ''}` : 'Buen trabajo hoy'}
-        </p>
+          )}
+        </main>
       </div>
 
-      {turnoActivo && (
+      {turnoActivo && (() => {
+        const precio = Number(turnoActivo.servicio.precio);
+        const e = parseFloat(split.efectivo) || 0;
+        const y = parseFloat(split.yape)     || 0;
+        const p = parseFloat(split.plin)     || 0;
+        const asignado = e + y + p;
+        const restante = precio - asignado;
+        const exacto = Math.abs(restante) < 0.001;
+
+        return (
         <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="glass-card w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-[#c9a84c]">Registrar Cobro</h2>
-              <button onClick={() => { setTurnoActivo(null); setAgotados(new Set()); setShowAgotados(false); }} className="text-[#9a9ab0]"><X className="w-6 h-6" /></button>
+              <button onClick={() => { setTurnoActivo(null); setSplit({ efectivo: '', yape: '', plin: '' }); setAgotados(new Set()); setShowAgotados(false); }}
+                className="text-[#9a9ab0] hover:text-white"><X className="w-6 h-6" /></button>
             </div>
 
             <div className="glass-card p-3 mb-5 bg-[#0a0a0f]/50">
               <p className="text-white font-bold">{turnoActivo.nombreCliente}</p>
               <p className="text-[#c9a84c] text-sm">{turnoActivo.servicio.nombre}</p>
-              <p className="text-[#c9a84c] text-2xl font-bold mt-1">S/. {Number(turnoActivo.servicio.precio).toFixed(2)}</p>
+              <p className="text-[#c9a84c] text-2xl font-bold mt-1">S/. {precio.toFixed(2)}</p>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-[#9a9ab0] text-sm">Método de pago:</p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { id: 'EFECTIVO', label: 'Efectivo', active: 'bg-[#00c896] text-white' },
-                  { id: 'YAPE', label: 'Yape', active: 'bg-purple-600 text-white' },
-                  { id: 'PLIN', label: 'Plin', active: 'bg-blue-500 text-white' },
-                ] as const).map(({ id, label, active }) => (
-                  <button key={id} onClick={() => setTipoPago(id)}
-                    className={`py-3 rounded-lg font-medium transition-all text-sm ${
-                      tipoPago === id ? active : 'bg-[#12121a] text-[#9a9ab0] border border-[#9a9ab0]'
-                    }`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 border border-[#9a9ab0]/30 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setShowAgotados(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-[#12121a] text-[#9a9ab0] text-sm hover:text-white transition-colors"
-                >
-                  <span>¿Algún insumo se agotó? {agotados.size > 0 && <span className="ml-1 px-2 py-0.5 rounded-full bg-red-700 text-white text-xs">{agotados.size}</span>}</span>
-                  <span>{showAgotados ? '▲' : '▼'}</span>
-                </button>
-                {showAgotados && (
-                  <div className="p-3 bg-[#0a0a0f]/60">
-                    {insumos.length === 0 ? (
-                      <p className="text-[#9a9ab0] text-xs text-center py-2">No hay insumos registrados</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {insumos.map(ins => {
-                          const sel = agotados.has(ins.id);
-                          return (
-                            <button key={ins.id} onClick={() => toggleAgotado(ins.id)}
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                                sel
-                                  ? 'bg-red-700 border-red-500 text-white'
-                                  : 'bg-transparent border-[#9a9ab0]/40 text-[#9a9ab0] hover:border-red-500 hover:text-red-400'
-                              }`}>
-                              {sel ? '✕ ' : ''}{ins.nombre}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {agotados.size > 0 && (
-                      <p className="text-[#9a9ab0] text-xs mt-2">
-                        Se restará 1 unidad de: {insumos.filter(i => agotados.has(i.id)).map(i => i.nombre).join(', ')}
-                      </p>
-                    )}
+            <div className="space-y-3 mb-4">
+              <p className="text-[#9a9ab0] text-sm">Distribución del pago:</p>
+              {([
+                { key: 'efectivo', label: 'Efectivo', color: 'text-[#00c896]', border: 'focus:border-[#00c896]' },
+                { key: 'yape',     label: 'Yape',     color: 'text-purple-400', border: 'focus:border-purple-400' },
+                { key: 'plin',     label: 'Plin',     color: 'text-blue-400',   border: 'focus:border-blue-400' },
+              ] as const).map(({ key, label, color, border }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <span className={`w-20 text-sm font-medium ${color}`}>{label}</span>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9ab0] text-sm">S/.</span>
+                    <input
+                      type="number" min="0" step="0.10"
+                      placeholder="0.00"
+                      value={split[key]}
+                      onChange={ev => setSplit(prev => ({ ...prev, [key]: ev.target.value }))}
+                      className={`w-full bg-[#12121a] border border-[#9a9ab0]/30 ${border} rounded-lg pl-9 pr-3 py-2.5 text-white text-sm outline-none transition-colors`}
+                    />
                   </div>
-                )}
-              </div>
-
-              <button onClick={confirmarPago} disabled={cobrandoId === turnoActivo.id}
-                className="w-full btn-gold disabled:opacity-50 mt-3">
-                {cobrandoId === turnoActivo.id ? 'Procesando...' : 'Confirmar y Finalizar'}
-              </button>
+                </div>
+              ))}
             </div>
+
+            {/* Indicador de totales */}
+            <div className={`flex justify-between items-center px-3 py-2 rounded-lg mb-4 text-sm ${exacto ? 'bg-[#00c896]/10 border border-[#00c896]/30' : 'bg-[#12121a] border border-[#9a9ab0]/20'}`}>
+              <span className="text-[#9a9ab0]">Asignado</span>
+              <span className={exacto ? 'text-[#00c896] font-bold' : asignado > precio ? 'text-[#e74c3c] font-bold' : 'text-white font-bold'}>
+                S/. {asignado.toFixed(2)} / {precio.toFixed(2)}
+              </span>
+              {!exacto && restante > 0 && <span className="text-[#9a9ab0] text-xs">Faltan S/. {restante.toFixed(2)}</span>}
+              {!exacto && restante < 0 && <span className="text-[#e74c3c] text-xs">Excede S/. {Math.abs(restante).toFixed(2)}</span>}
+            </div>
+
+            <div className="border border-[#9a9ab0]/30 rounded-lg overflow-hidden mb-4">
+              <button onClick={() => setShowAgotados(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-[#12121a] text-[#9a9ab0] text-sm hover:text-white transition-colors">
+                <span>¿Algún insumo se agotó? {agotados.size > 0 && <span className="ml-1 px-2 py-0.5 rounded-full bg-red-700 text-white text-xs">{agotados.size}</span>}</span>
+                <span>{showAgotados ? '▲' : '▼'}</span>
+              </button>
+              {showAgotados && (
+                <div className="p-3 bg-[#0a0a0f]/60">
+                  {insumos.length === 0 ? (
+                    <p className="text-[#9a9ab0] text-xs text-center py-2">No hay insumos registrados</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {insumos.map(ins => {
+                        const sel = agotados.has(ins.id);
+                        return (
+                          <button key={ins.id} onClick={() => toggleAgotado(ins.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                              sel ? 'bg-red-700 border-red-500 text-white' : 'bg-transparent border-[#9a9ab0]/40 text-[#9a9ab0] hover:border-red-500 hover:text-red-400'
+                            }`}>
+                            {sel ? '✕ ' : ''}{ins.nombre}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {agotados.size > 0 && (
+                    <p className="text-[#9a9ab0] text-xs mt-2">
+                      Se restará 1 unidad de: {insumos.filter(i => agotados.has(i.id)).map(i => i.nombre).join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button onClick={confirmarPago} disabled={!exacto || cobrandoId === turnoActivo.id}
+              className="w-full btn-gold disabled:opacity-50">
+              {cobrandoId === turnoActivo.id ? 'Procesando...' : 'Confirmar y Finalizar'}
+            </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {cubrirTurno && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">

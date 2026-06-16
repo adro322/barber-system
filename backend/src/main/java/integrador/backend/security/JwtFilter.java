@@ -31,7 +31,15 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         final String token = authHeader.substring(7);
-        final String email = jwtService.extraerEmail(token);
+
+        String email;
+        try {
+            email = jwtService.extraerEmail(token);
+        } catch (Exception e) {
+            // Token malformado o firmado con secret distinto → continuar sin autenticar (dará 401)
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);

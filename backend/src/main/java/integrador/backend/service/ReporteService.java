@@ -14,73 +14,54 @@ import java.util.List;
 @Service
 public class ReporteService {
 
-    @Autowired
-    private ReporteRepository reporteRepository;
+    @Autowired private ReporteRepository reporteRepository;
+    @Autowired private TransaccionRepository transaccionRepository;
+    @Autowired private EmailService emailService;
 
-    @Autowired
-    private TransaccionRepository transaccionRepository;
-
-    @Autowired
-    private EmailService emailService;
-
-    // Calcula el resumen del dia sin guardar en BD (usar para Excel y consultas)
-    public Reporte calcularResumenDeHoy() {
-        LocalDateTime inicioDia = LocalDate.now().atStartOfDay();
-        LocalDateTime finDia = LocalDate.now().atTime(23, 59, 59);
-        List<Transaccion> transaccionesDelDia = transaccionRepository.findByFechaBetween(inicioDia, finDia);
-
+    private Reporte agregarTransacciones(List<Transaccion> transacciones) {
         BigDecimal totalEfectivo = BigDecimal.ZERO;
         BigDecimal totalYape = BigDecimal.ZERO;
         BigDecimal totalPlin = BigDecimal.ZERO;
         BigDecimal totalGeneral = BigDecimal.ZERO;
 
-        for (Transaccion t : transaccionesDelDia) {
+        for (Transaccion t : transacciones) {
             BigDecimal monto = t.getMonto();
             totalGeneral = totalGeneral.add(monto);
-            switch (t.getTipoPago()) {
-                case "EFECTIVO" -> totalEfectivo = totalEfectivo.add(monto);
-                case "YAPE"     -> totalYape     = totalYape.add(monto);
-                case "PLIN"     -> totalPlin     = totalPlin.add(monto);
+            if ("MIXTO".equals(t.getTipoPago())) {
+                if (t.getMontoEfectivo() != null) totalEfectivo = totalEfectivo.add(t.getMontoEfectivo());
+                if (t.getMontoYape()     != null) totalYape     = totalYape.add(t.getMontoYape());
+                if (t.getMontoPlin()     != null) totalPlin     = totalPlin.add(t.getMontoPlin());
+            } else {
+                switch (t.getTipoPago()) {
+                    case "EFECTIVO" -> totalEfectivo = totalEfectivo.add(monto);
+                    case "YAPE"     -> totalYape     = totalYape.add(monto);
+                    case "PLIN"     -> totalPlin     = totalPlin.add(monto);
+                }
             }
         }
 
-        Reporte resumen = new Reporte();
-        resumen.setFecha(LocalDate.now());
-        resumen.setTotalEfectivo(totalEfectivo);
-        resumen.setTotalYape(totalYape);
-        resumen.setTotalPlin(totalPlin);
-        resumen.setTotalGeneral(totalGeneral);
-        return resumen;
+        Reporte reporte = new Reporte();
+        reporte.setFecha(LocalDate.now());
+        reporte.setTotalEfectivo(totalEfectivo);
+        reporte.setTotalYape(totalYape);
+        reporte.setTotalPlin(totalPlin);
+        reporte.setTotalGeneral(totalGeneral);
+        return reporte;
     }
 
-    // Guarda el cierre oficial del dia en BD y envia email al admin
+    private List<Transaccion> transaccionesDeHoy() {
+        LocalDateTime inicio = LocalDate.now().atStartOfDay();
+        LocalDateTime fin = LocalDate.now().atTime(23, 59, 59);
+        return transaccionRepository.findByFechaBetween(inicio, fin);
+    }
+
+    public Reporte calcularResumenDeHoy() {
+        return agregarTransacciones(transaccionesDeHoy());
+    }
+
     public Reporte generarCierreDeCaja() {
-        LocalDateTime inicioDia = LocalDate.now().atStartOfDay();
-        LocalDateTime finDia = LocalDate.now().atTime(23, 59, 59);
-        List<Transaccion> transaccionesDelDia = transaccionRepository.findByFechaBetween(inicioDia, finDia);
-
-        BigDecimal totalEfectivo = BigDecimal.ZERO;
-        BigDecimal totalYape = BigDecimal.ZERO;
-        BigDecimal totalPlin = BigDecimal.ZERO;
-        BigDecimal totalGeneral = BigDecimal.ZERO;
-
-        for (Transaccion t : transaccionesDelDia) {
-            BigDecimal monto = t.getMonto();
-            totalGeneral = totalGeneral.add(monto);
-            switch (t.getTipoPago()) {
-                case "EFECTIVO" -> totalEfectivo = totalEfectivo.add(monto);
-                case "YAPE"     -> totalYape     = totalYape.add(monto);
-                case "PLIN"     -> totalPlin     = totalPlin.add(monto);
-            }
-        }
-
-        Reporte cierre = new Reporte();
-        cierre.setFecha(LocalDate.now());
-        cierre.setTotalEfectivo(totalEfectivo);
-        cierre.setTotalYape(totalYape);
-        cierre.setTotalPlin(totalPlin);
-        cierre.setTotalGeneral(totalGeneral);
-
+        List<Transaccion> transacciones = transaccionesDeHoy();
+        Reporte cierre = agregarTransacciones(transacciones);
         Reporte guardado = reporteRepository.save(cierre);
 
         emailService.enviarResumenCierreCaja(
@@ -89,7 +70,7 @@ public class ReporteService {
             guardado.getTotalYape(),
             guardado.getTotalPlin(),
             guardado.getTotalGeneral(),
-            transaccionesDelDia.size()
+            transacciones.size()
         );
 
         return guardado;

@@ -71,9 +71,10 @@ export function clearAuth() {
   );
 }
 
-export async function downloadExcel() {
+export async function downloadExcel(desde?: string, hasta?: string) {
   const t = localStorage.getItem('jwt_token');
-  const r = await fetch(`${BASE}/api/caja/reporte/excel`, {
+  const qs = desde ? `?desde=${desde}&hasta=${hasta}` : '';
+  const r = await fetch(`${BASE}/api/caja/reporte/excel${qs}`, {
     headers: { Authorization: `Bearer ${t}` },
   });
   if (!r.ok) throw new Error(await r.text());
@@ -81,7 +82,7 @@ export async function downloadExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'Cierre_Caja.xlsx';
+  a.download = desde ? `Reporte_Semanal.xlsx` : 'Cierre_Caja.xlsx';
   a.click();
   URL.revokeObjectURL(url);
 }

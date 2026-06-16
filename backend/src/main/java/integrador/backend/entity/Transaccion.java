@@ -5,7 +5,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "transacciones")
+@Table(name = "transacciones", indexes = {
+    @Index(name = "idx_transacciones_fecha", columnList = "fecha")
+})
 public class Transaccion {
 
     @Id
@@ -25,6 +27,16 @@ public class Transaccion {
 
     @Column(name = "tipo_pago", nullable = false, length = 10)
     private String tipoPago;
+
+    // Solo presentes cuando tipoPago = "MIXTO"
+    @Column(name = "monto_efectivo", precision = 10, scale = 2)
+    private BigDecimal montoEfectivo;
+
+    @Column(name = "monto_yape", precision = 10, scale = 2)
+    private BigDecimal montoYape;
+
+    @Column(name = "monto_plin", precision = 10, scale = 2)
+    private BigDecimal montoPlin;
 
     @Column(nullable = false)
     private LocalDateTime fecha;
@@ -76,5 +88,14 @@ public class Transaccion {
     public void setFecha(LocalDateTime fecha) {
         this.fecha = fecha;
     }
+
+    public BigDecimal getMontoEfectivo() { return montoEfectivo; }
+    public void setMontoEfectivo(BigDecimal montoEfectivo) { this.montoEfectivo = montoEfectivo; }
+
+    public BigDecimal getMontoYape() { return montoYape; }
+    public void setMontoYape(BigDecimal montoYape) { this.montoYape = montoYape; }
+
+    public BigDecimal getMontoPlin() { return montoPlin; }
+    public void setMontoPlin(BigDecimal montoPlin) { this.montoPlin = montoPlin; }
 
 }

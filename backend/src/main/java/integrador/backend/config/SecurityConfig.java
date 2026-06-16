@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -14,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -26,7 +28,7 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
 
-    @Value("${frontend.url:http://localhost:5173}")
+    @Value("${frontend.url}")
     private String frontendUrl;
 
     @Bean
@@ -35,23 +37,46 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .headers(headers -> headers
+                .frameOptions(fo -> fo.deny())
+                .contentTypeOptions(cto -> {})
+                .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+            )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/error").permitAll()
 
-                // Solo Admin y Barbero pueden VER insumos
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/insumos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
-                // Barberos pueden descontar stock de un insumo agotado
-                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/insumos/*/agotar").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
-                // Solo Admin puede modificar insumos
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/insumos/**").hasAuthority("ROLE_ADMIN")
+                // ── BARBEROS ─────────────────────────────────────────────
+                .requestMatchers(HttpMethod.GET, "/api/barberos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers("/api/barberos/**").hasAuthority("ROLE_ADMIN")
+
+                // ── SERVICIOS ─────────────────────────────────────────────
+                .requestMatchers(HttpMethod.GET, "/api/servicios/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers("/api/servicios/**").hasAuthority("ROLE_ADMIN")
+
+                // ── TURNOS ────────────────────────────────────────────────
+                .requestMatchers("/api/turnos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+
+                // ── CAJA ──────────────────────────────────────────────────
+                // Barberos pueden cobrar, lo demás solo admin
+                .requestMatchers(HttpMethod.POST, "/api/caja/cobrar-split").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers("/api/caja/**").hasAuthority("ROLE_ADMIN")
+
+                // ── INSUMOS ───────────────────────────────────────────────
+                .requestMatchers(HttpMethod.GET, "/api/insumos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers(HttpMethod.PATCH, "/api/insumos/*/agotar").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers("/api/insumos/**").hasAuthority("ROLE_ADMIN")
+
+                // ── DETALLE-SERVICIO ──────────────────────────────────────
+                .requestMatchers("/api/detalle-servicio/**").hasAuthority("ROLE_ADMIN")
+
+                // ── PERFIL (usuario sobre sí mismo) ───────────────────────
+                .requestMatchers("/api/perfil/**").authenticated()
 
                 .anyRequest().authenticated()
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) -> res.sendError(401, "No autorizado"))
+                .accessDeniedHandler((req, res, e) -> res.sendError(403, "Acceso denegado"))
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -71,14 +96,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+        // Solo permite el dominio del frontend en producción (configurar FRONTEND_URL en Railway)
         config.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "https://frontend-deko451s-projects.vercel.app",
-            frontendUrl
+            frontendUrl,
+            "http://localhost:5173"
         ));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setExposedHeaders(List.of("Authorization"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
