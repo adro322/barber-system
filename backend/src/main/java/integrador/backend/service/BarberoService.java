@@ -6,6 +6,7 @@ import integrador.backend.repository.BarberoRepository;
 import integrador.backend.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
@@ -49,9 +50,14 @@ public class BarberoService {
         return barberoRepository.save(barbero);
     }
 
+    @Transactional
     public void eliminarBarbero(Long id) {
         Barbero barbero = barberoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Barbero no encontrado"));
+        Usuario usuario = barbero.getUsuario();
         barberoRepository.delete(barbero);
+        if (usuario != null) {
+            usuarioRepository.delete(usuario);
+        }
     }
 }
