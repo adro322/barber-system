@@ -4,6 +4,7 @@ import integrador.backend.dto.CobrarSplitRequest;
 import integrador.backend.entity.Reporte;
 import integrador.backend.entity.Transaccion;
 import integrador.backend.repository.ReporteRepository;
+import integrador.backend.service.EventoBroadcaster;
 import integrador.backend.service.ReporteService;
 import integrador.backend.service.TransaccionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,19 +25,17 @@ import java.util.List;
 @RequestMapping("/api/caja")
 public class CajaController {
 
-    @Autowired
-    private TransaccionService transaccionService;
-
-    @Autowired
-    private ReporteService reporteService;
-
-    @Autowired
-    private ReporteRepository reporteRepository;
+    @Autowired private TransaccionService transaccionService;
+    @Autowired private ReporteService reporteService;
+    @Autowired private ReporteRepository reporteRepository;
+    @Autowired private EventoBroadcaster broadcaster;
 
     @PostMapping("/cobrar-split")
     public ResponseEntity<Transaccion> registrarPagoSplit(@RequestBody CobrarSplitRequest req) {
-        return ResponseEntity.ok(transaccionService.cobrarTurnoSplit(
-                req.getIdTurno(), req.getEfectivo(), req.getYape(), req.getPlin()));
+        Transaccion t = transaccionService.cobrarTurnoSplit(
+                req.getIdTurno(), req.getEfectivo(), req.getYape(), req.getPlin());
+        broadcaster.broadcast();
+        return ResponseEntity.ok(t);
     }
 
     @PostMapping("/cierre")

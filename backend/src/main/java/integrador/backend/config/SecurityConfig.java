@@ -43,7 +43,7 @@ public class SecurityConfig {
                 .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/error").permitAll()
+                .requestMatchers("/api/auth/**", "/api/eventos/stream", "/error").permitAll()
 
                 // ── BARBEROS ─────────────────────────────────────────────
                 .requestMatchers(HttpMethod.GET, "/api/barberos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")

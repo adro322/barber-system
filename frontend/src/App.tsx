@@ -613,8 +613,12 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
       }
     } catch {}
     refresh();
-    const interval = setInterval(refresh, 15000);
-    return () => clearInterval(interval);
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const es = new EventSource(`${BASE}/api/eventos/stream`);
+    es.addEventListener('update', () => refresh());
+    es.onerror = () => {};
+    const fallback = setInterval(refresh, 30000);
+    return () => { es.close(); clearInterval(fallback); };
   }, []);
 
   const totalsByMethod: Record<string, number> = {};
@@ -1942,8 +1946,12 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
       }
     } catch {}
     load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const es = new EventSource(`${BASE}/api/eventos/stream`);
+    es.addEventListener('update', () => load());
+    es.onerror = () => {};
+    const fallback = setInterval(load, 30000);
+    return () => { es.close(); clearInterval(fallback); };
   }, []);
 
   const toggleAgotado = (id: number) => {
