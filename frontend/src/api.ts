@@ -1,7 +1,30 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
+// window.name es verdaderamente aislado por pestaña en todos los navegadores
+// y persiste entre recargas de página sin ser compartido entre pestañas.
+function tabId(): string {
+  if (!window.name || !window.name.startsWith('bv_')) {
+    window.name = 'bv_' + Math.random().toString(36).slice(2, 10);
+  }
+  return window.name;
+}
+
+function authKey(): string {
+  return 'auth_' + tabId();
+}
+
+function getToken(): string | null {
+  try {
+    const raw = localStorage.getItem(authKey());
+    if (!raw) return null;
+    return (JSON.parse(raw) as { token?: string }).token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function hdrs(): HeadersInit {
-  const t = sessionStorage.getItem('jwt_token');
+  const t = getToken();
   return {
     'Content-Type': 'application/json',
     ...(t ? { Authorization: `Bearer ${t}` } : {}),
@@ -21,7 +44,7 @@ async function req<T>(
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (r.status === 401) {
-    sessionStorage.clear();
+    clearAuth();
     window.location.reload();
   }
   if (!r.ok) {
@@ -49,30 +72,28 @@ export const api = {
   del: (path: string) => req<void>('DELETE', path),
 };
 
-export function getAuth() {
-  const token = sessionStorage.getItem('jwt_token');
-  const rol = sessionStorage.getItem('jwt_rol');
-  const nombre = sessionStorage.getItem('jwt_nombre');
-  const email = sessionStorage.getItem('jwt_email');
-  if (!token || !rol || !nombre || !email) return null;
-  return { token, rol, nombre, email };
+export function getAuth(): { token: string; rol: string; nombre: string; email: string } | null {
+  try {
+    const raw = localStorage.getItem(authKey());
+    if (!raw) return null;
+    const { token, rol, nombre, email } = JSON.parse(raw) as Record<string, string>;
+    if (!token || !rol || !nombre || !email) return null;
+    return { token, rol, nombre, email };
+  } catch {
+    return null;
+  }
 }
 
 export function setAuth(token: string, rol: string, nombre: string, email: string) {
-  sessionStorage.setItem('jwt_token', token);
-  sessionStorage.setItem('jwt_rol', rol);
-  sessionStorage.setItem('jwt_nombre', nombre);
-  sessionStorage.setItem('jwt_email', email);
+  localStorage.setItem(authKey(), JSON.stringify({ token, rol, nombre, email }));
 }
 
 export function clearAuth() {
-  ['jwt_token', 'jwt_rol', 'jwt_nombre', 'jwt_email'].forEach(k =>
-    sessionStorage.removeItem(k)
-  );
+  localStorage.removeItem(authKey());
 }
 
 export async function downloadExcel(desde?: string, hasta?: string) {
-  const t = sessionStorage.getItem('jwt_token');
+  const t = getToken();
   const qs = desde ? `?desde=${desde}&hasta=${hasta}` : '';
   const r = await fetch(`${BASE}/api/caja/reporte/excel${qs}`, {
     headers: { Authorization: `Bearer ${t}` },

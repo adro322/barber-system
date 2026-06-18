@@ -600,12 +600,12 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
     ]).then(([b, t, s, tr]) => {
       setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
       setTransacciones(tr ?? []);
-      try { sessionStorage.setItem('cache_admin', JSON.stringify({ b, t, s, tr })); } catch {}
+      try { localStorage.setItem('cache_' + window.name, JSON.stringify({ b, t, s, tr })); } catch {}
     }).catch(console.error);
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('cache_admin');
+      const raw = localStorage.getItem('cache_' + window.name);
       if (raw) {
         const { b, t, s, tr } = JSON.parse(raw);
         setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
