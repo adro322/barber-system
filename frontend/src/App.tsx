@@ -613,6 +613,8 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
       }
     } catch {}
     refresh();
+    const interval = setInterval(refresh, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const totalsByMethod: Record<string, number> = {};
@@ -1940,6 +1942,8 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
       }
     } catch {}
     load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const toggleAgotado = (id: number) => {
