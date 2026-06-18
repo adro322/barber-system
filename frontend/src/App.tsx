@@ -1375,8 +1375,14 @@ function CajaScreen() {
   const byMethod: Record<string, number> = {};
   let total = 0;
   for (const t of transacciones) {
-    const k = t.tipoPago.toLowerCase();
-    byMethod[k] = (byMethod[k] || 0) + t.monto;
+    if (t.tipoPago === 'MIXTO') {
+      byMethod['efectivo'] = (byMethod['efectivo'] || 0) + (t.montoEfectivo ?? 0);
+      byMethod['yape']     = (byMethod['yape']     || 0) + (t.montoYape     ?? 0);
+      byMethod['plin']     = (byMethod['plin']     || 0) + (t.montoPlin     ?? 0);
+    } else {
+      const k = t.tipoPago.toLowerCase();
+      byMethod[k] = (byMethod[k] || 0) + t.monto;
+    }
     total += t.monto;
   }
 
@@ -1477,7 +1483,11 @@ function CajaScreen() {
                   <p className="text-[#9a9ab0] text-xs">{t.barbero.nombre} · {new Date(t.fecha).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="px-2 py-1 rounded text-xs bg-[#12121a] text-[#9a9ab0]">{t.tipoPago}</span>
+                  <span className="px-2 py-1 rounded text-xs bg-[#12121a] text-[#9a9ab0]">
+                    {t.tipoPago === 'MIXTO'
+                      ? `MIXTO${t.montoEfectivo ? ` Ef:${Number(t.montoEfectivo).toFixed(0)}` : ''}${t.montoYape ? ` Yp:${Number(t.montoYape).toFixed(0)}` : ''}${t.montoPlin ? ` Pl:${Number(t.montoPlin).toFixed(0)}` : ''}`
+                      : t.tipoPago}
+                  </span>
                   <span className="text-[#c9a84c] font-bold">S/. {Number(t.monto).toFixed(2)}</span>
                 </div>
               </div>
