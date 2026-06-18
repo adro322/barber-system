@@ -83,6 +83,19 @@ public class EmailService {
         }
     }
 
+    public void enviarSolicitudActivacion(String nombreBarbero, String emailBarbero) {
+        try {
+            enviar(
+                correoAdmin(),
+                "Solicitud de Activación — " + nombreBarbero,
+                "El barbero " + nombreBarbero + " (" + emailBarbero + ") ha solicitado la activación de su cuenta.\n\n" +
+                "Ingresa al panel de administración para activarla."
+            );
+        } catch (Exception e) {
+            System.err.println("Error enviando solicitud de activación: " + e.getMessage());
+        }
+    }
+
     public void enviarAlertaStockBajo(List<String> nombresInsumos) {
         if (nombresInsumos == null || nombresInsumos.isEmpty()) return;
         try {

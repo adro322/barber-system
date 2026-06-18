@@ -7,6 +7,7 @@ import integrador.backend.dto.LoginResponse;
 import integrador.backend.entity.Usuario;
 import integrador.backend.repository.UsuarioRepository;
 import integrador.backend.security.JwtService;
+import integrador.backend.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,11 +22,19 @@ public class PerfilController {
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
+    @Autowired private EmailService emailService;
 
     private Usuario getUsuarioActual() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    }
+
+    @PostMapping("/solicitar-activacion")
+    public ResponseEntity<String> solicitarActivacion() {
+        Usuario usuario = getUsuarioActual();
+        emailService.enviarSolicitudActivacion(usuario.getNombre(), usuario.getEmail());
+        return ResponseEntity.ok("Solicitud enviada al administrador");
     }
 
     @PutMapping("/email")

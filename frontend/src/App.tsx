@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, DollarSign, Package, LogOut, Bell, Settings,
   Eye, EyeOff, Plus, Edit2, TrendingUp, Clock, Users, X, Download, Menu, Trash2, KeyRound,
-  BarChart2, Clipboard, ChevronRight,
+  BarChart2, Clipboard, ChevronRight, Lock,
 } from 'lucide-react';
 import { ScissorsIcon, CombIcon } from './components/icons/BarbershopIcons';
 import './index.css';
@@ -1856,6 +1856,9 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
   const [cobrandoId, setCobrandoId] = useState<number | null>(null);
   const [agotados, setAgotados] = useState<Set<number>>(new Set());
   const [showAgotados, setShowAgotados] = useState(false);
+  const [showInactivoModal, setShowInactivoModal] = useState(false);
+  const [solicitandoActivacion, setSolicitandoActivacion] = useState(false);
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
   const [cubrirTurno, setCubrirTurno] = useState<ApiTurno | null>(null);
   const [barberScreen, setBarberScreen] = useState<BarberScreen>('cola');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1878,10 +1881,23 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
     } catch {}
   };
 
+  const solicitarActivacion = async () => {
+    setSolicitandoActivacion(true);
+    try {
+      await api.post('/api/perfil/solicitar-activacion');
+      setSolicitudEnviada(true);
+    } catch {
+      setSolicitudEnviada(true); // muestra éxito igual para no exponer errores internos
+    } finally {
+      setSolicitandoActivacion(false);
+    }
+  };
+
   const asignarme = async (turno: ApiTurno) => {
     if (!myBarbero) return;
     if (myBarbero.estado !== 'ACTIVO') {
-      alert('Tu cuenta está inactiva. No puedes tomar turnos.');
+      setSolicitudEnviada(false);
+      setShowInactivoModal(true);
       return;
     }
     try {
@@ -1895,7 +1911,8 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
   const cubrir = async () => {
     if (!myBarbero || !cubrirTurno) return;
     if (myBarbero.estado !== 'ACTIVO') {
-      alert('Tu cuenta está inactiva. No puedes cubrir turnos.');
+      setSolicitudEnviada(false);
+      setShowInactivoModal(true);
       return;
     }
     try {
@@ -2298,6 +2315,37 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
         </div>
         );
       })()}
+
+      {showInactivoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="glass-card w-full max-w-sm p-6 flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-red-900/30 border border-red-800/50 flex items-center justify-center">
+              <Lock className="w-8 h-8 text-red-400" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">Cuenta Inactiva</h2>
+              <p className="text-[#9a9ab0] text-sm leading-relaxed">
+                Tu cuenta ha sido desactivada por el administrador. Puedes solicitar la reactivación y recibirá una notificación inmediata.
+              </p>
+            </div>
+            {solicitudEnviada ? (
+              <div className="w-full bg-[#00c896]/10 border border-[#00c896]/30 rounded-xl p-4 text-center">
+                <p className="text-[#00c896] font-medium text-sm">✓ Solicitud enviada</p>
+                <p className="text-[#9a9ab0] text-xs mt-1">El administrador recibirá una notificación.</p>
+              </div>
+            ) : (
+              <button onClick={solicitarActivacion} disabled={solicitandoActivacion}
+                className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0a0a0f] font-bold hover:bg-[#e0bb5e] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {solicitandoActivacion ? 'Enviando...' : 'Solicitar Activación'}
+              </button>
+            )}
+            <button onClick={() => setShowInactivoModal(false)}
+              className="text-[#9a9ab0] text-sm hover:text-white transition-colors">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {cubrirTurno && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
