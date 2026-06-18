@@ -57,9 +57,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/turnos/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
 
                 // ── CAJA ──────────────────────────────────────────────────
-                // Barberos pueden cobrar y ver sus transacciones del día
                 .requestMatchers(HttpMethod.POST, "/api/caja/cobrar-split").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers(HttpMethod.GET, "/api/caja/transacciones").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers(HttpMethod.GET, "/api/caja/mis-transacciones").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers("/api/caja/**").hasAuthority("ROLE_ADMIN")
 
                 // ── INSUMOS ───────────────────────────────────────────────

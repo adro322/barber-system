@@ -4,10 +4,12 @@ import integrador.backend.dto.CobrarSplitRequest;
 import integrador.backend.entity.Reporte;
 import integrador.backend.entity.Transaccion;
 import integrador.backend.repository.ReporteRepository;
+import integrador.backend.repository.TransaccionRepository;
 import integrador.backend.service.ReporteService;
 import integrador.backend.service.TransaccionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import org.apache.poi.ss.usermodel.*;
@@ -42,6 +44,15 @@ public class CajaController {
     @PostMapping("/cierre")
     public ResponseEntity<Reporte> cerrarCajaDelDia() {
         return ResponseEntity.ok(reporteService.generarCierreDeCaja());
+    }
+
+    // Transacciones del día del barbero autenticado (usa email del JWT directamente)
+    @GetMapping("/mis-transacciones")
+    public ResponseEntity<List<Transaccion>> misTransacciones(Authentication auth) {
+        String email = auth.getName();
+        java.time.LocalDateTime inicio = java.time.LocalDate.now().atStartOfDay();
+        java.time.LocalDateTime fin    = java.time.LocalDate.now().atTime(23, 59, 59);
+        return ResponseEntity.ok(transaccionRepository.findByBarberoUsuarioEmailAndFechaBetween(email, inicio, fin));
     }
 
     @GetMapping("/transacciones")

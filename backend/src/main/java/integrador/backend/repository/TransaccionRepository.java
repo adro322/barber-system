@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface TransaccionRepository extends JpaRepository<Transaccion, Long> {
     List<Transaccion> findByFechaBetween(LocalDateTime inicio, LocalDateTime fin);
+    List<Transaccion> findByBarberoUsuarioEmailAndFechaBetween(String email, LocalDateTime inicio, LocalDateTime fin);
 }
