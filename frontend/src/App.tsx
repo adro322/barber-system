@@ -13,7 +13,7 @@ type ApiUsuario = { id: number; nombre: string; email: string; activo: boolean; 
 type ApiBarbero = { id: number; nombre: string; telefono: string; estado: string; usuario: ApiUsuario };
 type ApiServicio = { id: number; nombre: string; precio: number; descripcion: string };
 type ApiTurno = { id: number; nombreCliente: string; estado: string; fechaHora: string; barbero?: ApiBarbero; servicio: ApiServicio };
-type ApiTransaccion = { id: number; monto: number; tipoPago: string; fecha: string; barbero: ApiBarbero; turno: { id: number; nombreCliente: string; servicio: ApiServicio } };
+type ApiTransaccion = { id: number; monto: number; tipoPago: string; montoEfectivo?: number; montoYape?: number; montoPlin?: number; fecha: string; barbero: ApiBarbero; turno: { id: number; nombreCliente: string; servicio: ApiServicio } };
 type ApiInsumo = { id: number; nombre: string; stock: number; stockMinimo: number; unidad: string };
 type ApiReporte = { id: number; fecha: string; totalEfectivo: number; totalYape: number; totalPlin: number; totalGeneral: number };
 type Auth = { token: string; rol: string; nombre: string; email: string };
@@ -618,8 +618,14 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
   const totalsByMethod: Record<string, number> = {};
   let totalHoy = 0;
   for (const t of transacciones) {
-    const k = t.tipoPago.toLowerCase();
-    totalsByMethod[k] = (totalsByMethod[k] || 0) + t.monto;
+    if (t.tipoPago === 'MIXTO') {
+      totalsByMethod['efectivo'] = (totalsByMethod['efectivo'] || 0) + (t.montoEfectivo ?? 0);
+      totalsByMethod['yape']     = (totalsByMethod['yape']     || 0) + (t.montoYape     ?? 0);
+      totalsByMethod['plin']     = (totalsByMethod['plin']     || 0) + (t.montoPlin     ?? 0);
+    } else {
+      const k = t.tipoPago.toLowerCase();
+      totalsByMethod[k] = (totalsByMethod[k] || 0) + t.monto;
+    }
     totalHoy += t.monto;
   }
   const earningsByBarber: Record<string, number> = {};
@@ -658,7 +664,7 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
           <h1 className="text-xl md:text-2xl font-bold text-white mb-1">Buenos días, {nombre}</h1>
           <p className="text-[#9a9ab0] text-xs md:text-sm capitalize">{currentDate}</p>
         </div>
-        <div className="relative">
+        <div className="relative hidden md:block">
           <button onClick={toggleBell}
             className="flex w-10 h-10 rounded-full bg-[#12121a] items-center justify-center text-[#c9a84c]">
             <Bell className="w-5 h-5" />
@@ -1864,6 +1870,10 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
 
   const asignarme = async (turno: ApiTurno) => {
     if (!myBarbero) return;
+    if (myBarbero.estado !== 'ACTIVO') {
+      alert('Tu cuenta está inactiva. No puedes tomar turnos.');
+      return;
+    }
     try {
       await api.put<ApiTurno>(`/api/turnos/${turno.id}/asignar`, { idBarbero: String(myBarbero.id) });
       load();
@@ -1874,6 +1884,10 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
 
   const cubrir = async () => {
     if (!myBarbero || !cubrirTurno) return;
+    if (myBarbero.estado !== 'ACTIVO') {
+      alert('Tu cuenta está inactiva. No puedes cubrir turnos.');
+      return;
+    }
     try {
       await api.put<ApiTurno>(`/api/turnos/${cubrirTurno.id}/asignar`, { idBarbero: String(myBarbero.id) });
       setCubrirTurno(null);
@@ -1933,8 +1947,14 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
   const byMethod: Record<string, number> = {};
   let totalHoy = 0;
   for (const t of transacciones) {
-    const k = t.tipoPago.toLowerCase();
-    byMethod[k] = (byMethod[k] || 0) + t.monto;
+    if (t.tipoPago === 'MIXTO') {
+      byMethod['efectivo'] = (byMethod['efectivo'] || 0) + (t.montoEfectivo ?? 0);
+      byMethod['yape']     = (byMethod['yape']     || 0) + (t.montoYape     ?? 0);
+      byMethod['plin']     = (byMethod['plin']     || 0) + (t.montoPlin     ?? 0);
+    } else {
+      const k = t.tipoPago.toLowerCase();
+      byMethod[k] = (byMethod[k] || 0) + t.monto;
+    }
     totalHoy += t.monto;
   }
 
@@ -2072,11 +2092,14 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
                               <p className="text-[#c9a84c] text-xs text-center mt-2 italic">Insumos descontados automáticamente</p>
                             </>
                           )}
-                          {!finalizado && esDeOtro && (
+                          {!finalizado && esDeOtro && turno.estado !== 'EN_PROCESO' && (
                             <button onClick={() => setCubrirTurno(turno)}
                               className="w-full mt-1 py-2 rounded-lg border border-[#9a9ab0]/40 text-[#9a9ab0] text-sm hover:border-[#c9a84c] hover:text-[#c9a84c] transition-all">
                               Cubrir turno
                             </button>
+                          )}
+                          {!finalizado && esDeOtro && turno.estado === 'EN_PROCESO' && (
+                            <p className="text-[#9a9ab0] text-xs text-center mt-2 italic">En atención por {turno.barbero?.nombre}</p>
                           )}
                         </div>
                       );

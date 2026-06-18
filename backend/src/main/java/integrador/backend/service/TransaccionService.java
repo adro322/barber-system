@@ -105,4 +105,9 @@ public class TransaccionService {
             : LocalDate.now().atTime(23, 59, 59);
         return transaccionRepository.findByFechaBetween(inicio, fin);
     }
+
+    public void cobrarTurno(Long idTurno, String string) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'cobrarTurno'");
+    }
 }
