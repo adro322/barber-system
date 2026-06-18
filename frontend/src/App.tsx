@@ -1881,13 +1881,14 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
     } catch {}
   };
 
-  const solicitarActivacion = async () => {
+  const activarCuenta = async () => {
     setSolicitandoActivacion(true);
     try {
-      await api.post('/api/perfil/solicitar-activacion');
-      setSolicitudEnviada(true);
+      await api.patch('/api/perfil/activar');
+      setShowInactivoModal(false);
+      load();
     } catch {
-      setSolicitudEnviada(true); // muestra éxito igual para no exponer errores internos
+      setSolicitudEnviada(true);
     } finally {
       setSolicitandoActivacion(false);
     }
@@ -2325,18 +2326,18 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
             <div className="text-center">
               <h2 className="text-xl font-bold text-white mb-2">Cuenta Inactiva</h2>
               <p className="text-[#9a9ab0] text-sm leading-relaxed">
-                Tu cuenta ha sido desactivada por el administrador. Puedes solicitar la reactivación y recibirá una notificación inmediata.
+                Tu cuenta está marcada como inactiva. Actívala cuando estés listo para atender clientes.
               </p>
             </div>
             {solicitudEnviada ? (
-              <div className="w-full bg-[#00c896]/10 border border-[#00c896]/30 rounded-xl p-4 text-center">
-                <p className="text-[#00c896] font-medium text-sm">✓ Solicitud enviada</p>
-                <p className="text-[#9a9ab0] text-xs mt-1">El administrador recibirá una notificación.</p>
+              <div className="w-full bg-red-900/20 border border-red-800/40 rounded-xl p-4 text-center">
+                <p className="text-red-400 font-medium text-sm">Error al activar la cuenta</p>
+                <p className="text-[#9a9ab0] text-xs mt-1">Intenta de nuevo o contacta al administrador.</p>
               </div>
             ) : (
-              <button onClick={solicitarActivacion} disabled={solicitandoActivacion}
-                className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0a0a0f] font-bold hover:bg-[#e0bb5e] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {solicitandoActivacion ? 'Enviando...' : 'Solicitar Activación'}
+              <button onClick={activarCuenta} disabled={solicitandoActivacion}
+                className="w-full py-3 rounded-xl bg-[#c9a84c] text-[#0a0a0f] font-bold hover:bg-[#e0bb5e] transition-all disabled:opacity-50">
+                {solicitandoActivacion ? 'Activando...' : 'Activar mi cuenta'}
               </button>
             )}
             <button onClick={() => setShowInactivoModal(false)}

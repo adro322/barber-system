@@ -2,12 +2,13 @@ package integrador.backend.controller;
 
 import integrador.backend.dto.CambiarEmailRequest;
 import integrador.backend.dto.CambiarPasswordRequest;
-import jakarta.validation.Valid;
 import integrador.backend.dto.LoginResponse;
+import integrador.backend.entity.Barbero;
 import integrador.backend.entity.Usuario;
+import integrador.backend.repository.BarberoRepository;
 import integrador.backend.repository.UsuarioRepository;
 import integrador.backend.security.JwtService;
-import integrador.backend.service.EmailService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +23,7 @@ public class PerfilController {
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtService jwtService;
-    @Autowired private EmailService emailService;
+    @Autowired private BarberoRepository barberoRepository;
 
     private Usuario getUsuarioActual() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -30,11 +31,15 @@ public class PerfilController {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
     }
 
-    @PostMapping("/solicitar-activacion")
-    public ResponseEntity<String> solicitarActivacion() {
-        Usuario usuario = getUsuarioActual();
-        emailService.enviarSolicitudActivacion(usuario.getNombre(), usuario.getEmail());
-        return ResponseEntity.ok("Solicitud enviada al administrador");
+    @PatchMapping("/activar")
+    public ResponseEntity<String> activarCuenta() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Barbero barbero = barberoRepository.findByUsuarioEmail(email)
+                .orElse(null);
+        if (barbero == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Perfil de barbero no encontrado");
+        barbero.setEstado("ACTIVO");
+        barberoRepository.save(barbero);
+        return ResponseEntity.ok("Cuenta activada");
     }
 
     @PutMapping("/email")
