@@ -4,12 +4,10 @@ import integrador.backend.dto.CobrarSplitRequest;
 import integrador.backend.entity.Reporte;
 import integrador.backend.entity.Transaccion;
 import integrador.backend.repository.ReporteRepository;
-import integrador.backend.repository.TransaccionRepository;
 import integrador.backend.service.ReporteService;
 import integrador.backend.service.TransaccionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import org.apache.poi.ss.usermodel.*;
@@ -44,15 +42,6 @@ public class CajaController {
     @PostMapping("/cierre")
     public ResponseEntity<Reporte> cerrarCajaDelDia() {
         return ResponseEntity.ok(reporteService.generarCierreDeCaja());
-    }
-
-    // Transacciones del día del barbero autenticado (usa email del JWT directamente)
-    @GetMapping("/mis-transacciones")
-    public ResponseEntity<List<Transaccion>> misTransacciones(Authentication auth) {
-        String email = auth.getName();
-        java.time.LocalDateTime inicio = java.time.LocalDate.now().atStartOfDay();
-        java.time.LocalDateTime fin    = java.time.LocalDate.now().atTime(23, 59, 59);
-        return ResponseEntity.ok(transaccionRepository.findByBarberoUsuarioEmailAndFechaBetween(email, inicio, fin));
     }
 
     @GetMapping("/transacciones")
@@ -109,7 +98,6 @@ public class CajaController {
         // ─── Paleta ──────────────────────────────────────────────────────────
         XSSFColor gold     = new XSSFColor(new byte[]{(byte)201,(byte)168,(byte)76}, null);
         XSSFColor darkGold = new XSSFColor(new byte[]{(byte)160,(byte)130,(byte)50}, null);
-        XSSFColor lightGold= new XSSFColor(new byte[]{(byte)255,(byte)248,(byte)210}, null);
         XSSFColor rowAlt   = new XSSFColor(new byte[]{(byte)245,(byte)245,(byte)245}, null);
         XSSFColor totalBg  = new XSSFColor(new byte[]{(byte)240,(byte)225,(byte)160}, null);
 
