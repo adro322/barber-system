@@ -1,7 +1,7 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 function hdrs(): HeadersInit {
-  const t = localStorage.getItem('jwt_token');
+  const t = sessionStorage.getItem('jwt_token');
   return {
     'Content-Type': 'application/json',
     ...(t ? { Authorization: `Bearer ${t}` } : {}),
@@ -21,7 +21,7 @@ async function req<T>(
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (r.status === 401) {
-    localStorage.clear();
+    sessionStorage.clear();
     window.location.reload();
   }
   if (!r.ok) {
@@ -50,29 +50,29 @@ export const api = {
 };
 
 export function getAuth() {
-  const token = localStorage.getItem('jwt_token');
-  const rol = localStorage.getItem('jwt_rol');
-  const nombre = localStorage.getItem('jwt_nombre');
-  const email = localStorage.getItem('jwt_email');
+  const token = sessionStorage.getItem('jwt_token');
+  const rol = sessionStorage.getItem('jwt_rol');
+  const nombre = sessionStorage.getItem('jwt_nombre');
+  const email = sessionStorage.getItem('jwt_email');
   if (!token || !rol || !nombre || !email) return null;
   return { token, rol, nombre, email };
 }
 
 export function setAuth(token: string, rol: string, nombre: string, email: string) {
-  localStorage.setItem('jwt_token', token);
-  localStorage.setItem('jwt_rol', rol);
-  localStorage.setItem('jwt_nombre', nombre);
-  localStorage.setItem('jwt_email', email);
+  sessionStorage.setItem('jwt_token', token);
+  sessionStorage.setItem('jwt_rol', rol);
+  sessionStorage.setItem('jwt_nombre', nombre);
+  sessionStorage.setItem('jwt_email', email);
 }
 
 export function clearAuth() {
   ['jwt_token', 'jwt_rol', 'jwt_nombre', 'jwt_email'].forEach(k =>
-    localStorage.removeItem(k)
+    sessionStorage.removeItem(k)
   );
 }
 
 export async function downloadExcel(desde?: string, hasta?: string) {
-  const t = localStorage.getItem('jwt_token');
+  const t = sessionStorage.getItem('jwt_token');
   const qs = desde ? `?desde=${desde}&hasta=${hasta}` : '';
   const r = await fetch(`${BASE}/api/caja/reporte/excel${qs}`, {
     headers: { Authorization: `Bearer ${t}` },
