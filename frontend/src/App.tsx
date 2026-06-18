@@ -1991,10 +1991,10 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
         </button>
         <div className="flex-1 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#c9a84c] hidden md:flex items-center justify-center text-[#0a0a0f] font-bold text-lg">
-            {nombre.charAt(0)}
+            {(myBarbero?.nombre ?? nombre).charAt(0)}
           </div>
           <div>
-            <h1 className="text-white font-bold">Hola, {nombre}</h1>
+            <h1 className="text-white font-bold">Hola, {myBarbero?.nombre ?? nombre}</h1>
             <p className="text-[#9a9ab0] text-xs capitalize">{currentDate}</p>
           </div>
         </div>
@@ -2019,9 +2019,9 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-[#c9a84c] flex items-center justify-center text-[#0a0a0f] font-bold text-sm">
-                    {nombre.charAt(0)}
+                    {(myBarbero?.nombre ?? nombre).charAt(0)}
                   </div>
-                  <span className="text-white font-bold text-sm truncate max-w-[120px]">{nombre}</span>
+                  <span className="text-white font-bold text-sm truncate max-w-[120px]">{myBarbero?.nombre ?? nombre}</span>
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="text-[#9a9ab0] hover:text-white">
                   <X className="w-5 h-5" />

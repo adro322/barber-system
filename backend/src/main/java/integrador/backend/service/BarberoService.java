@@ -38,7 +38,14 @@ public class BarberoService {
     public Barbero actualizarBarbero(Long id, String nombre, String telefono) {
         Barbero barbero = barberoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Barbero no encontrado"));
-        if (nombre != null) barbero.setNombre(nombre);
+        if (nombre != null) {
+            barbero.setNombre(nombre);
+            Usuario usuario = barbero.getUsuario();
+            if (usuario != null) {
+                usuario.setNombre(nombre);
+                usuarioRepository.save(usuario);
+            }
+        }
         if (telefono != null) barbero.setTelefono(telefono);
         return barberoRepository.save(barbero);
     }
