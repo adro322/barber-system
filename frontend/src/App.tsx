@@ -833,9 +833,12 @@ function ColaTab({ turnos, barberos, servicios, onRefresh }: {
     return estado;
   };
 
-  const sortedTurnos = [...turnos].sort((a, b) =>
-    new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime()
-  );
+  const prioEstado: Record<string, number> = { ATENDIENDO: 0, ESPERA: 1, FINALIZADO: 2 };
+  const sortedTurnos = [...turnos].sort((a, b) => {
+    const diff = (prioEstado[a.estado] ?? 3) - (prioEstado[b.estado] ?? 3);
+    if (diff !== 0) return diff;
+    return new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime();
+  });
 
   return (
     <div>
