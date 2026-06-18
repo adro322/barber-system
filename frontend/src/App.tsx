@@ -1858,14 +1858,7 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
       api.get<ApiInsumo[]>('/api/insumos').catch(() => [] as ApiInsumo[]),
     ]);
     const me = barberos.find(b => b.usuario.email.toLowerCase() === email.toLowerCase()) ?? null;
-
-    // Intenta endpoint dedicado; si falla, filtra por ID del barbero desde la lista completa
-    let myTr: ApiTransaccion[] = [];
-    try {
-      myTr = await api.get<ApiTransaccion[]>('/api/caja/mis-transacciones');
-    } catch {
-      if (me) myTr = allTr.filter(t => t.barbero?.id === me.id);
-    }
+    const myTr = me ? allTr.filter(t => t.barbero?.id === me.id) : [];
 
     setMyBarbero(me);
     setInsumos(allInsumos);
