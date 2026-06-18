@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, DollarSign, Package, LogOut, Bell, Settings,
-  Eye, EyeOff, Plus, Edit2, TrendingUp, Clock, Users, X, Download, Menu, Trash2, KeyRound,
+  Eye, EyeOff, Plus, Edit2, Clock, Users, X, Download, Menu, Trash2, KeyRound,
   BarChart2, Clipboard, ChevronRight, Lock,
 } from 'lucide-react';
 import { ScissorsIcon, CombIcon } from './components/icons/BarbershopIcons';
@@ -18,6 +18,22 @@ type ApiInsumo = { id: number; nombre: string; stock: number; stockMinimo: numbe
 type ApiReporte = { id: number; fecha: string; totalEfectivo: number; totalYape: number; totalPlin: number; totalGeneral: number };
 type Auth = { token: string; rol: string; nombre: string; email: string };
 type Screen = 'dashboard' | 'barberos' | 'insumos' | 'pagos' | 'reportes' | 'configuracion';
+
+// ─── Caja session helpers ─────────────────────────────────────────────────────
+const getCajaKey = () => {
+  const n = new Date();
+  return `barberves_caja_${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+};
+const getCajaSession = (): { apertura: string; estado: 'abierta' | 'cerrada' } => {
+  try {
+    const raw = localStorage.getItem(getCajaKey());
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { apertura: '2020-01-01T00:00:00.000Z', estado: 'abierta' };
+};
+const saveCajaSession = (s: { apertura: string; estado: 'abierta' | 'cerrada' }) => {
+  try { localStorage.setItem(getCajaKey(), JSON.stringify(s)); } catch {}
+};
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -211,7 +227,14 @@ function AdminView({ nombre, screen, setScreen, onLogout, onAuthUpdate }: {
   });
 
   useEffect(() => {
-    api.get<ApiInsumo[]>('/api/insumos/alertas').then(data => setAlertas(data ?? [])).catch(console.error);
+    const refreshAlertas = () =>
+      api.get<ApiInsumo[]>('/api/insumos/alertas').then(data => setAlertas(data ?? [])).catch(console.error);
+    refreshAlertas();
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const es = new EventSource(`${BASE}/api/eventos/stream`);
+    es.addEventListener('update', refreshAlertas);
+    es.onerror = () => {};
+    return () => { es.close(); };
   }, []);
 
   const unreadCount = alertas.filter(a => !seenIds.has(a.id)).length;
@@ -621,9 +644,15 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
     return () => { es.close(); clearInterval(fallback); };
   }, []);
 
+  const _sesion = getCajaSession();
+  const _apertura = new Date(_sesion.apertura);
+  const _abierta = _sesion.estado === 'abierta';
+  const sesionTr = _abierta ? transacciones.filter(t => new Date(t.fecha) >= _apertura) : [];
+  const sesionTurnos = _abierta ? turnos.filter(t => new Date(t.fechaHora) >= _apertura) : [];
+
   const totalsByMethod: Record<string, number> = {};
   let totalHoy = 0;
-  for (const t of transacciones) {
+  for (const t of sesionTr) {
     if (t.tipoPago === 'MIXTO') {
       totalsByMethod['efectivo'] = (totalsByMethod['efectivo'] || 0) + (t.montoEfectivo ?? 0);
       totalsByMethod['yape']     = (totalsByMethod['yape']     || 0) + (t.montoYape     ?? 0);
@@ -635,7 +664,7 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
     totalHoy += t.monto;
   }
   const earningsByBarber: Record<string, number> = {};
-  for (const t of transacciones) {
+  for (const t of sesionTr) {
     const key = t.barbero?.nombre ?? 'Sin asignar';
     earningsByBarber[key] = (earningsByBarber[key] || 0) + t.monto;
   }
@@ -718,7 +747,7 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
         <ResumenTab totalsByMethod={totalsByMethod} totalToday={totalHoy} earningsByBarber={earningsByBarber} />
       )}
       {activeTab === 'cola' && (
-        <ColaTab turnos={turnos} barberos={barberos} servicios={servicios}
+        <ColaTab turnos={sesionTurnos} barberos={barberos} servicios={servicios}
           onRefresh={refresh} />
       )}
       {activeTab === 'servicios' && (
@@ -758,12 +787,6 @@ function ResumenTab({ totalsByMethod, totalToday, earningsByBarber }: {
                 </h3>
               </div>
             </div>
-            {card.label === 'Efectivo Hoy' && totalToday > 0 && (
-              <div className="flex items-center gap-1 text-[#00c896] text-sm">
-                <TrendingUp className="w-4 h-4" />
-                <span>En curso</span>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -1226,7 +1249,7 @@ function ServicioFormFields({ f, setF }: { f: ServicioForm; setF: (v: ServicioFo
       <input type="text" placeholder="Nombre del servicio" value={f.nombre}
         onChange={(e) => setF({ ...f, nombre: e.target.value })}
         className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
-      <input type="number" step="0.01" placeholder="Precio (S/.)" value={f.precio}
+      <input type="number" step="0.01" min="0.01" placeholder="Precio (S/.)" value={f.precio}
         onChange={(e) => setF({ ...f, precio: e.target.value })}
         className="w-full bg-[#0a0a0f] text-white px-4 py-3 rounded-lg border border-[#9a9ab0] focus:border-[#c9a84c] outline-none" />
       <input type="text" placeholder="Descripción (opcional)" value={f.descripcion}
@@ -1254,6 +1277,7 @@ function ServiciosTab({ servicios, onRefresh }: {
 
   const handleEdit = async () => {
     if (!editServicio || !editForm.nombre || !editForm.precio) return;
+    if (parseFloat(editForm.precio) <= 0) { alert('El precio debe ser mayor a S/. 0.00'); return; }
     setEditLoading(true);
     try {
       await api.put(`/api/servicios/${editServicio.id}`, {
@@ -1272,6 +1296,7 @@ function ServiciosTab({ servicios, onRefresh }: {
 
   const handleAdd = async () => {
     if (!form.nombre || !form.precio) return;
+    if (parseFloat(form.precio) <= 0) { alert('El precio debe ser mayor a S/. 0.00'); return; }
     setLoading(true);
     try {
       await api.post('/api/servicios', undefined, {
@@ -1373,17 +1398,20 @@ function ServiciosTab({ servicios, onRefresh }: {
 function CajaScreen() {
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
   const [closing, setClosing] = useState(false);
-  const [mensaje, setMensaje] = useState('');
   const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [showCierreModal, setShowCierreModal] = useState(false);
+  const [cajaSesion, setCajaSesion] = useState(() => getCajaSession());
 
   const load = () => api.get<ApiTransaccion[]>('/api/caja/transacciones').then(setTransacciones).catch(console.error);
   useEffect(() => { load(); }, []);
 
+  const apertura = new Date(cajaSesion.apertura);
+  const visibleTr = transacciones.filter(t => new Date(t.fecha) >= apertura);
   const isSunday = new Date().getDay() === 0;
 
   const byMethod: Record<string, number> = {};
   let total = 0;
-  for (const t of transacciones) {
+  for (const t of visibleTr) {
     if (t.tipoPago === 'MIXTO') {
       byMethod['efectivo'] = (byMethod['efectivo'] || 0) + (t.montoEfectivo ?? 0);
       byMethod['yape']     = (byMethod['yape']     || 0) + (t.montoYape     ?? 0);
@@ -1399,20 +1427,26 @@ function CajaScreen() {
     try { await downloadExcel(); } catch (err: unknown) { alert((err as Error).message); }
   };
 
-  const handleCierre = async () => {
-    if (!confirm('¿Cerrar caja y enviar resumen al administrador?')) return;
+  const confirmarCierre = async () => {
+    setShowCierreModal(false);
     setClosing(true);
-    setMensaje('');
     try {
       await api.post('/api/caja/cierre');
-      setMensaje('Caja cerrada. Se envió el resumen al correo del administrador.');
-      load();
-      try { await downloadExcel(); } catch { /* silently skip if excel fails */ }
+      const cerrada = { apertura: cajaSesion.apertura, estado: 'cerrada' as const };
+      saveCajaSession(cerrada);
+      setCajaSesion(cerrada);
     } catch (err: unknown) {
       alert((err as Error).message);
     } finally {
       setClosing(false);
     }
+  };
+
+  const abrirCaja = () => {
+    const nueva = { apertura: new Date().toISOString(), estado: 'abierta' as const };
+    saveCajaSession(nueva);
+    setCajaSesion(nueva);
+    load();
   };
 
   const handleReporteSemanal = async () => {
@@ -1430,6 +1464,29 @@ function CajaScreen() {
       setWeeklyLoading(false);
     }
   };
+
+  if (cajaSesion.estado === 'cerrada') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center">
+        <div className="w-24 h-24 rounded-full bg-[#c9a84c]/10 border-2 border-[#c9a84c]/30 flex items-center justify-center mb-6">
+          <Lock className="w-12 h-12 text-[#c9a84c]" />
+        </div>
+        <h2 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Caja Cerrada</h2>
+        <p className="text-[#9a9ab0] mb-1">El cierre fue registrado y enviado al administrador.</p>
+        <p className="text-[#9a9ab0] text-sm mb-8">El Excel fue descargado automáticamente.</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button onClick={abrirCaja} className="btn-gold text-base px-10 py-3">
+            Abrir Caja
+          </button>
+          <button onClick={handleExport}
+            className="px-6 py-3 rounded-lg bg-[#12121a] text-[#c9a84c] hover:bg-[#c9a84c] hover:text-[#0a0a0f] transition-all flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            Descargar Excel del Día
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -1451,14 +1508,12 @@ function CajaScreen() {
               <Download className="w-4 h-4" />
               Exportar
             </button>
-            <button onClick={handleCierre} disabled={closing}
+            <button onClick={() => setShowCierreModal(true)} disabled={closing}
               className="px-3 py-2 rounded-lg bg-[#8b0000] text-white hover:bg-red-700 transition-all text-sm disabled:opacity-50">
               {closing ? '...' : 'Cerrar Caja'}
             </button>
           </div>
         </div>
-
-        {mensaje && <p className="text-[#00c896] text-sm text-center mb-4">{mensaje}</p>}
 
         <div className="w-40 h-40 md:w-48 md:h-48 mx-auto rounded-full border-[20px] border-[#00c896] relative mb-8">
           <div className="absolute inset-0 flex items-center justify-center flex-col">
@@ -1481,11 +1536,11 @@ function CajaScreen() {
         </div>
       </div>
 
-      {transacciones.length > 0 && (
+      {visibleTr.length > 0 && (
         <div className="glass-card p-4 md:p-6">
           <h3 className="text-white font-bold mb-4">Transacciones del Día</h3>
           <div className="space-y-2">
-            {transacciones.map((t) => (
+            {visibleTr.map((t) => (
               <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 border-b border-[#9a9ab0]/10 gap-1">
                 <div>
                   <p className="text-white text-sm font-medium">{t.turno.nombreCliente} — {t.turno.servicio.nombre}</p>
@@ -1505,10 +1560,43 @@ function CajaScreen() {
         </div>
       )}
 
-      {transacciones.length === 0 && (
+      {visibleTr.length === 0 && (
         <p className="text-[#9a9ab0] text-sm italic text-center mt-4">
           Los pagos son registrados por los barberos al finalizar cada servicio
         </p>
+      )}
+
+      {showCierreModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="glass-card w-full max-w-md p-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-[#8b0000]/30 border border-[#8b0000]/50 flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-red-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Cerrar Caja del Día</h2>
+              <p className="text-[#9a9ab0] text-sm leading-relaxed">
+                Se generará el reporte, se enviará al correo del administrador y se descargará el Excel automáticamente.
+              </p>
+              {total > 0 && (
+                <div className="mt-4 rounded-xl bg-[#c9a84c]/10 border border-[#c9a84c]/30 p-3">
+                  <p className="text-[#9a9ab0] text-xs mb-1">Total a cerrar</p>
+                  <p className="text-[#c9a84c] text-2xl font-bold">S/. {total.toFixed(2)}</p>
+                  <p className="text-[#9a9ab0] text-xs mt-1">{visibleTr.length} transacción{visibleTr.length !== 1 ? 'es' : ''}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCierreModal(false)}
+                className="flex-1 py-3 rounded-lg border border-[#9a9ab0]/40 text-[#9a9ab0] font-medium hover:border-white hover:text-white transition-all">
+                Cancelar
+              </button>
+              <button onClick={confirmarCierre}
+                className="flex-1 py-3 rounded-lg bg-[#8b0000] text-white font-bold hover:bg-red-700 transition-all">
+                Confirmar Cierre
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1537,7 +1625,14 @@ function InventoryScreen() {
     setItems(insumos);
     setAutoIds(new Set(detalles.map(d => d.insumo.id)));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const es = new EventSource(`${BASE}/api/eventos/stream`);
+    es.addEventListener('update', () => load());
+    es.onerror = () => {};
+    return () => { es.close(); };
+  }, []);
 
   const openEdit = (item: ApiInsumo) => {
     setEditItem(item);
@@ -1825,7 +1920,12 @@ function ReporteScreen() {
                 <div key={r.id} className="glass-card p-4 md:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <p className="text-white font-bold capitalize">{fmtFecha(r.fecha)}</p>
+                      <p className="text-white font-bold capitalize flex items-center gap-2 flex-wrap">
+                        {fmtFecha(r.fecha)}
+                        {r.fecha === new Date().toISOString().slice(0, 10) && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/30 font-normal">Actualizado</span>
+                        )}
+                      </p>
                       <div className="flex flex-wrap gap-3 mt-2">
                         <span className="text-[#9a9ab0] text-xs">Efectivo: <span className="text-white font-medium">{fmt(r.totalEfectivo)}</span></span>
                         <span className="text-[#9a9ab0] text-xs">Yape: <span className="text-purple-400 font-medium">{fmt(r.totalYape)}</span></span>
@@ -1865,6 +1965,7 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
   const [cobrandoId, setCobrandoId] = useState<number | null>(null);
   const [agotados, setAgotados] = useState<Set<number>>(new Set());
   const [showAgotados, setShowAgotados] = useState(false);
+  const [autoIds, setAutoIds] = useState<Set<number>>(new Set());
   const [showInactivoModal, setShowInactivoModal] = useState(false);
   const [solicitandoActivacion, setSolicitandoActivacion] = useState(false);
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
@@ -1873,16 +1974,21 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const load = async () => {
-    const [me, allTurnos, allTr, allInsumos] = await Promise.all([
+    const [me, allTurnos, allTr, allInsumos, detalles] = await Promise.all([
       api.get<ApiBarbero>('/api/barberos/me').catch(() => null as ApiBarbero | null),
       api.get<ApiTurno[]>('/api/turnos').catch(() => [] as ApiTurno[]),
       api.get<ApiTransaccion[]>('/api/caja/transacciones').catch(() => [] as ApiTransaccion[]),
       api.get<ApiInsumo[]>('/api/insumos').catch(() => [] as ApiInsumo[]),
+      api.get<{ insumo: { id: number } }[]>('/api/detalle-servicio').catch(() => [] as { insumo: { id: number } }[]),
     ]);
-    const myTr = me ? allTr.filter(t => t.barbero?.id === me.id) : [];
+    const sesion = getCajaSession();
+    const myTr = (sesion.estado === 'abierta' && me)
+      ? allTr.filter(t => t.barbero?.id === me.id && new Date(t.fecha) >= new Date(sesion.apertura))
+      : [];
 
     setMyBarbero(me);
     setInsumos(allInsumos);
+    setAutoIds(new Set(detalles.map(d => d.insumo.id)));
     setTodosTurnos(allTurnos);
     setTransacciones(myTr);
     try {
@@ -2087,6 +2193,23 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
               {!myBarbero && (
                 <div className="glass-card p-6 mb-6 border border-[#e74c3c]">
                   <p className="text-[#e74c3c] text-center">No se encontró tu perfil de barbero. Contacta al administrador.</p>
+                </div>
+              )}
+
+              {insumos.some(i => i.stock === 0) && (
+                <div className="glass-card p-3 mb-4 border border-[#e74c3c] bg-[#e74c3c]/10">
+                  <p className="text-[#e74c3c] font-bold text-sm">⚠️ Insumo(s) agotado(s)</p>
+                  <p className="text-[#9a9ab0] text-xs mt-0.5">
+                    {insumos.filter(i => i.stock === 0).map(i => i.nombre).join(', ')} — Avisa al administrador.
+                  </p>
+                </div>
+              )}
+              {insumos.some(i => i.stock > 0 && i.stock <= i.stockMinimo) && (
+                <div className="glass-card p-3 mb-4 border border-[#f39c12] bg-[#f39c12]/10">
+                  <p className="text-[#f39c12] font-bold text-sm">⚠️ Stock bajo</p>
+                  <p className="text-[#9a9ab0] text-xs mt-0.5">
+                    {insumos.filter(i => i.stock > 0 && i.stock <= i.stockMinimo).map(i => i.nombre).join(', ')}
+                  </p>
                 </div>
               )}
 
@@ -2297,18 +2420,26 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
               </button>
               {showAgotados && (
                 <div className="p-3 bg-[#0a0a0f]/60">
-                  {insumos.length === 0 ? (
+                  {insumos.filter(ins => !autoIds.has(ins.id)).length === 0 ? (
                     <p className="text-[#9a9ab0] text-xs text-center py-2">No hay insumos registrados</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {insumos.map(ins => {
+                      {insumos.filter(ins => !autoIds.has(ins.id)).map(ins => {
                         const sel = agotados.has(ins.id);
+                        const yaAgotado = ins.stock === 0;
                         return (
-                          <button key={ins.id} onClick={() => toggleAgotado(ins.id)}
+                          <button key={ins.id}
+                            disabled={yaAgotado}
+                            onClick={() => !yaAgotado && toggleAgotado(ins.id)}
+                            title={yaAgotado ? 'Este insumo ya está agotado' : undefined}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                              sel ? 'bg-red-700 border-red-500 text-white' : 'bg-transparent border-[#9a9ab0]/40 text-[#9a9ab0] hover:border-red-500 hover:text-red-400'
+                              yaAgotado
+                                ? 'bg-[#e74c3c]/10 border-[#e74c3c]/30 text-[#e74c3c]/50 cursor-not-allowed'
+                                : sel
+                                ? 'bg-red-700 border-red-500 text-white'
+                                : 'bg-transparent border-[#9a9ab0]/40 text-[#9a9ab0] hover:border-red-500 hover:text-red-400'
                             }`}>
-                            {sel ? '✕ ' : ''}{ins.nombre}
+                            {yaAgotado ? `${ins.nombre} — ya agotado` : sel ? `✕ ${ins.nombre}` : ins.nombre}
                           </button>
                         );
                       })}

@@ -62,7 +62,17 @@ public class ReporteService {
     public Reporte generarCierreDeCaja() {
         List<Transaccion> transacciones = transaccionesDeHoy();
         Reporte cierre = agregarTransacciones(transacciones);
-        Reporte guardado = reporteRepository.save(cierre);
+
+        // Sobreescribir si ya existe un reporte para hoy (múltiples cierres del mismo día)
+        Reporte guardado = reporteRepository.findByFecha(LocalDate.now())
+            .map(existing -> {
+                existing.setTotalEfectivo(cierre.getTotalEfectivo());
+                existing.setTotalYape(cierre.getTotalYape());
+                existing.setTotalPlin(cierre.getTotalPlin());
+                existing.setTotalGeneral(cierre.getTotalGeneral());
+                return reporteRepository.save(existing);
+            })
+            .orElseGet(() -> reporteRepository.save(cierre));
 
         emailService.enviarResumenCierreCaja(
             guardado.getFecha(),

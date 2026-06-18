@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -40,7 +41,9 @@ public class CajaController {
 
     @PostMapping("/cierre")
     public ResponseEntity<Reporte> cerrarCajaDelDia() {
-        return ResponseEntity.ok(reporteService.generarCierreDeCaja());
+        Reporte r = reporteService.generarCierreDeCaja();
+        broadcaster.broadcast();
+        return ResponseEntity.ok(r);
     }
 
     @GetMapping("/transacciones")
@@ -202,7 +205,8 @@ public class CajaController {
             CellStyle csNum = alt ? sAltNum : sDataNum;
 
             Cell cFecha = row.createCell(0);
-            cFecha.setCellValue(t.getFecha() != null ? t.getFecha().toLocalDate().toString() : "-");
+            cFecha.setCellValue(t.getFecha() != null
+                    ? t.getFecha().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) : "-");
             cFecha.setCellStyle(cs);
 
             Cell cCliente = row.createCell(1);

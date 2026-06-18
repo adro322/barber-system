@@ -1,5 +1,7 @@
 package integrador.backend.service;
 
+import integrador.backend.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -113,5 +115,12 @@ public class EmailService {
     @Value("${admin.email}")
     private String adminEmail;
 
-    private String correoAdmin() { return adminEmail; }
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    private String correoAdmin() {
+        return usuarioRepository.findFirstByRolNombre("ADMIN")
+                .map(u -> u.getEmail())
+                .orElse(adminEmail);
+    }
 }

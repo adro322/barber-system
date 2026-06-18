@@ -68,6 +68,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/insumos/**").hasAuthority("ROLE_ADMIN")
 
                 // ── DETALLE-SERVICIO ──────────────────────────────────────
+                .requestMatchers(HttpMethod.GET, "/api/detalle-servicio/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers("/api/detalle-servicio/**").hasAuthority("ROLE_ADMIN")
 
                 // ── USUARIOS (reset contraseña por admin) ────────────────
