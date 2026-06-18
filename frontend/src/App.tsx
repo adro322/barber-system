@@ -2092,13 +2092,13 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
                               <p className="text-[#c9a84c] text-xs text-center mt-2 italic">Insumos descontados automáticamente</p>
                             </>
                           )}
-                          {!finalizado && esDeOtro && turno.estado !== 'EN_PROCESO' && (
+                          {!finalizado && esDeOtro && turno.estado !== 'ATENDIENDO' && (
                             <button onClick={() => setCubrirTurno(turno)}
                               className="w-full mt-1 py-2 rounded-lg border border-[#9a9ab0]/40 text-[#9a9ab0] text-sm hover:border-[#c9a84c] hover:text-[#c9a84c] transition-all">
                               Cubrir turno
                             </button>
                           )}
-                          {!finalizado && esDeOtro && turno.estado === 'EN_PROCESO' && (
+                          {!finalizado && esDeOtro && turno.estado === 'ATENDIENDO' && (
                             <p className="text-[#9a9ab0] text-xs text-center mt-2 italic">En atención por {turno.barbero?.nombre}</p>
                           )}
                         </div>
