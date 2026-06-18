@@ -1,9 +1,11 @@
 package integrador.backend.controller;
 
 import integrador.backend.entity.Barbero;
+import integrador.backend.repository.BarberoRepository;
 import integrador.backend.service.BarberoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -13,6 +15,17 @@ public class BarberoController {
 
     @Autowired
     private BarberoService barberoService;
+
+    @Autowired
+    private BarberoRepository barberoRepository;
+
+    @GetMapping("/me")
+    public ResponseEntity<Barbero> miPerfil(Authentication auth) {
+        String email = auth.getName();
+        return barberoRepository.findByUsuarioEmail(email)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     @PostMapping("/perfil")
     public ResponseEntity<Barbero> registrarBarbero(

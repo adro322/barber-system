@@ -1851,13 +1851,12 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const load = async () => {
-    const [barberos, allTurnos, allTr, allInsumos] = await Promise.all([
-      api.get<ApiBarbero[]>('/api/barberos').catch(() => [] as ApiBarbero[]),
+    const [me, allTurnos, allTr, allInsumos] = await Promise.all([
+      api.get<ApiBarbero>('/api/barberos/me').catch(() => null as ApiBarbero | null),
       api.get<ApiTurno[]>('/api/turnos').catch(() => [] as ApiTurno[]),
       api.get<ApiTransaccion[]>('/api/caja/transacciones').catch(() => [] as ApiTransaccion[]),
       api.get<ApiInsumo[]>('/api/insumos').catch(() => [] as ApiInsumo[]),
     ]);
-    const me = barberos.find(b => b.usuario.email.toLowerCase() === email.toLowerCase()) ?? null;
     const myTr = me ? allTr.filter(t => t.barbero?.id === me.id) : [];
 
     setMyBarbero(me);
