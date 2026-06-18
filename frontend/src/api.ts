@@ -1,7 +1,7 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-// window.name es verdaderamente aislado por pestaña en todos los navegadores
-// y persiste entre recargas de página sin ser compartido entre pestañas.
+// window.name es aislado por pestaña en todos los navegadores y persiste en recargas.
+// Se regenera en cada login para garantizar aislamiento incluso si la pestaña fue duplicada.
 function tabId(): string {
   if (!window.name || !window.name.startsWith('bv_')) {
     window.name = 'bv_' + Math.random().toString(36).slice(2, 10);
@@ -85,6 +85,9 @@ export function getAuth(): { token: string; rol: string; nombre: string; email: 
 }
 
 export function setAuth(token: string, rol: string, nombre: string, email: string) {
+  // Siempre genera un nuevo ID al hacer login para garantizar aislamiento
+  // incluso si esta pestaña fue duplicada de otra (y heredó su window.name)
+  window.name = 'bv_' + Math.random().toString(36).slice(2, 10);
   localStorage.setItem(authKey(), JSON.stringify({ token, rol, nombre, email }));
 }
 

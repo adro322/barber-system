@@ -1851,13 +1851,22 @@ function BarberView({ nombre, email, onLogout }: { nombre: string; email: string
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const load = async () => {
-    const [barberos, allTurnos, myTr, allInsumos] = await Promise.all([
+    const [barberos, allTurnos, allTr, allInsumos] = await Promise.all([
       api.get<ApiBarbero[]>('/api/barberos').catch(() => [] as ApiBarbero[]),
       api.get<ApiTurno[]>('/api/turnos').catch(() => [] as ApiTurno[]),
-      api.get<ApiTransaccion[]>('/api/caja/mis-transacciones').catch(() => [] as ApiTransaccion[]),
+      api.get<ApiTransaccion[]>('/api/caja/transacciones').catch(() => [] as ApiTransaccion[]),
       api.get<ApiInsumo[]>('/api/insumos').catch(() => [] as ApiInsumo[]),
     ]);
     const me = barberos.find(b => b.usuario.email.toLowerCase() === email.toLowerCase()) ?? null;
+
+    // Intenta endpoint dedicado; si falla, filtra por ID del barbero desde la lista completa
+    let myTr: ApiTransaccion[] = [];
+    try {
+      myTr = await api.get<ApiTransaccion[]>('/api/caja/mis-transacciones');
+    } catch {
+      if (me) myTr = allTr.filter(t => t.barbero?.id === me.id);
+    }
+
     setMyBarbero(me);
     setInsumos(allInsumos);
     setTodosTurnos(allTurnos);
