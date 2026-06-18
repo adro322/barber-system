@@ -41,7 +41,7 @@ export default function App() {
   };
 
   if (!auth) return <LoginScreen onLogin={handleLogin} />;
-  if (auth.rol === 'BARBERO') return <BarberView nombre={auth.nombre} email={auth.email} onLogout={handleLogout} />;
+  if (auth.rol === 'BARBERO') return <BarberView nombre={auth.nombre} onLogout={handleLogout} />;
 
   return <AdminView nombre={auth.nombre} screen={screen} setScreen={setScreen} onLogout={handleLogout} onAuthUpdate={handleAuthUpdate} />;
 }
@@ -1846,7 +1846,7 @@ function ReporteScreen() {
 // ─── Barber view ──────────────────────────────────────────────────────────────
 type BarberScreen = 'cola' | 'insumos';
 
-function BarberView({ nombre, email, onLogout }: { nombre: string; email: string; onLogout: () => void }) {
+function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void }) {
   const [todosTurnos, setTodosTurnos] = useState<ApiTurno[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
   const [myBarbero, setMyBarbero] = useState<ApiBarbero | null>(null);
