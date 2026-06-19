@@ -16,24 +16,11 @@ type ApiTurno = { id: number; nombreCliente: string; estado: string; fechaHora: 
 type ApiTransaccion = { id: number; monto: number; tipoPago: string; montoEfectivo?: number; montoYape?: number; montoPlin?: number; fecha: string; barbero: ApiBarbero; turno: { id: number; nombreCliente: string; servicio: ApiServicio } };
 type ApiInsumo = { id: number; nombre: string; stock: number; stockMinimo: number; unidad: string };
 type ApiReporte = { id: number; fecha: string; totalEfectivo: number; totalYape: number; totalPlin: number; totalGeneral: number };
+type ApiSesionCaja = { apertura: string; estado: 'ABIERTA' | 'CERRADA' };
 type Auth = { token: string; rol: string; nombre: string; email: string };
 type Screen = 'dashboard' | 'barberos' | 'insumos' | 'pagos' | 'reportes' | 'configuracion';
 
-// ─── Caja session helpers ─────────────────────────────────────────────────────
-const getCajaKey = () => {
-  const n = new Date();
-  return `barberves_caja_${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-};
-const getCajaSession = (): { apertura: string; estado: 'abierta' | 'cerrada' } => {
-  try {
-    const raw = localStorage.getItem(getCajaKey());
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { apertura: '2020-01-01T00:00:00.000Z', estado: 'abierta' };
-};
-const saveCajaSession = (s: { apertura: string; estado: 'abierta' | 'cerrada' }) => {
-  try { localStorage.setItem(getCajaKey(), JSON.stringify(s)); } catch {}
-};
+const DEFAULT_SESION: ApiSesionCaja = { apertura: '2020-01-01T00:00:00', estado: 'ABIERTA' };
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -605,6 +592,7 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
   const [turnos, setTurnos] = useState<ApiTurno[]>([]);
   const [servicios, setServicios] = useState<ApiServicio[]>([]);
   const [transacciones, setTransacciones] = useState<ApiTransaccion[]>([]);
+  const [sesion, setSesion] = useState<ApiSesionCaja>(DEFAULT_SESION);
   const [showBell, setShowBell] = useState(false);
   const [seenIds, setSeenIds] = useState<Set<number>>(() => {
     try {
@@ -620,9 +608,11 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
       api.get<ApiTurno[]>('/api/turnos'),
       api.get<ApiServicio[]>('/api/servicios'),
       api.get<ApiTransaccion[]>('/api/caja/transacciones'),
-    ]).then(([b, t, s, tr]) => {
+      api.get<ApiSesionCaja>('/api/caja/sesion/hoy'),
+    ]).then(([b, t, s, tr, ses]) => {
       setBarberos(b ?? []); setTurnos(t ?? []); setServicios(s ?? []);
       setTransacciones(tr ?? []);
+      setSesion(ses ?? DEFAULT_SESION);
       try { localStorage.setItem('cache_' + window.name, JSON.stringify({ b, t, s, tr })); } catch {}
     }).catch(console.error);
 
@@ -644,9 +634,8 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
     return () => { es.close(); clearInterval(fallback); };
   }, []);
 
-  const _sesion = getCajaSession();
-  const _apertura = new Date(_sesion.apertura);
-  const _abierta = _sesion.estado === 'abierta';
+  const _apertura = new Date(sesion.apertura);
+  const _abierta = sesion.estado === 'ABIERTA';
   const sesionTr = _abierta ? transacciones.filter(t => new Date(t.fecha) >= _apertura) : [];
   const sesionTurnos = _abierta ? turnos.filter(t => new Date(t.fechaHora) >= _apertura) : [];
 
@@ -1400,13 +1389,19 @@ function CajaScreen() {
   const [closing, setClosing] = useState(false);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [showCierreModal, setShowCierreModal] = useState(false);
-  const [cajaSesion, setCajaSesion] = useState(() => getCajaSession());
+  const [cajaSesion, setCajaSesion] = useState<ApiSesionCaja>(DEFAULT_SESION);
 
-  const load = () => api.get<ApiTransaccion[]>('/api/caja/transacciones').then(setTransacciones).catch(console.error);
+  const load = () => Promise.all([
+    api.get<ApiTransaccion[]>('/api/caja/transacciones'),
+    api.get<ApiSesionCaja>('/api/caja/sesion/hoy'),
+  ]).then(([tr, ses]) => {
+    setTransacciones(tr ?? []);
+    setCajaSesion(ses ?? DEFAULT_SESION);
+  }).catch(console.error);
   useEffect(() => { load(); }, []);
 
   const apertura = new Date(cajaSesion.apertura);
-  const visibleTr = transacciones.filter(t => new Date(t.fecha) >= apertura);
+  const visibleTr = cajaSesion.estado === 'ABIERTA' ? transacciones.filter(t => new Date(t.fecha) >= apertura) : [];
   const isSunday = new Date().getDay() === 0;
 
   const byMethod: Record<string, number> = {};
@@ -1432,9 +1427,8 @@ function CajaScreen() {
     setClosing(true);
     try {
       await api.post('/api/caja/cierre');
-      const cerrada = { apertura: cajaSesion.apertura, estado: 'cerrada' as const };
-      saveCajaSession(cerrada);
-      setCajaSesion(cerrada);
+      const ses = await api.get<ApiSesionCaja>('/api/caja/sesion/hoy');
+      setCajaSesion(ses ?? DEFAULT_SESION);
     } catch (err: unknown) {
       alert((err as Error).message);
     } finally {
@@ -1442,11 +1436,14 @@ function CajaScreen() {
     }
   };
 
-  const abrirCaja = () => {
-    const nueva = { apertura: new Date().toISOString(), estado: 'abierta' as const };
-    saveCajaSession(nueva);
-    setCajaSesion(nueva);
-    load();
+  const abrirCaja = async () => {
+    try {
+      const ses = await api.post<ApiSesionCaja>('/api/caja/sesion/abrir');
+      setCajaSesion(ses ?? DEFAULT_SESION);
+      load();
+    } catch (err: unknown) {
+      alert((err as Error).message);
+    }
   };
 
   const handleReporteSemanal = async () => {
@@ -1465,7 +1462,7 @@ function CajaScreen() {
     }
   };
 
-  if (cajaSesion.estado === 'cerrada') {
+  if (cajaSesion.estado === 'CERRADA') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center">
         <div className="w-24 h-24 rounded-full bg-[#c9a84c]/10 border-2 border-[#c9a84c]/30 flex items-center justify-center mb-6">
@@ -1974,15 +1971,15 @@ function BarberView({ nombre, onLogout }: { nombre: string; onLogout: () => void
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const load = async () => {
-    const [me, allTurnos, allTr, allInsumos, detalles] = await Promise.all([
+    const [me, allTurnos, allTr, allInsumos, detalles, sesion] = await Promise.all([
       api.get<ApiBarbero>('/api/barberos/me').catch(() => null as ApiBarbero | null),
       api.get<ApiTurno[]>('/api/turnos').catch(() => [] as ApiTurno[]),
       api.get<ApiTransaccion[]>('/api/caja/transacciones').catch(() => [] as ApiTransaccion[]),
       api.get<ApiInsumo[]>('/api/insumos').catch(() => [] as ApiInsumo[]),
       api.get<{ insumo: { id: number } }[]>('/api/detalle-servicio').catch(() => [] as { insumo: { id: number } }[]),
+      api.get<ApiSesionCaja>('/api/caja/sesion/hoy').catch(() => DEFAULT_SESION),
     ]);
-    const sesion = getCajaSession();
-    const myTr = (sesion.estado === 'abierta' && me)
+    const myTr = (sesion.estado === 'ABIERTA' && me)
       ? allTr.filter(t => t.barbero?.id === me.id && new Date(t.fecha) >= new Date(sesion.apertura))
       : [];
 

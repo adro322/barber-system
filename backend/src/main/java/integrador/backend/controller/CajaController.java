@@ -2,8 +2,10 @@ package integrador.backend.controller;
 
 import integrador.backend.dto.CobrarSplitRequest;
 import integrador.backend.entity.Reporte;
+import integrador.backend.entity.SesionCaja;
 import integrador.backend.entity.Transaccion;
 import integrador.backend.repository.ReporteRepository;
+import integrador.backend.repository.SesionCajaRepository;
 import integrador.backend.service.EventoBroadcaster;
 import integrador.backend.service.ReporteService;
 import integrador.backend.service.TransaccionService;
@@ -19,8 +21,10 @@ import org.springframework.http.MediaType;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/caja")
@@ -30,6 +34,35 @@ public class CajaController {
     @Autowired private ReporteService reporteService;
     @Autowired private ReporteRepository reporteRepository;
     @Autowired private EventoBroadcaster broadcaster;
+    @Autowired private SesionCajaRepository sesionCajaRepository;
+
+    @GetMapping("/sesion/hoy")
+    public ResponseEntity<Map<String, String>> obtenerSesionHoy() {
+        return sesionCajaRepository.findByFecha(LocalDate.now())
+            .map(s -> ResponseEntity.ok(Map.of(
+                "apertura", s.getApertura().toString(),
+                "estado", s.getEstado()
+            )))
+            .orElseGet(() -> ResponseEntity.ok(Map.of(
+                "apertura", "2020-01-01T00:00:00",
+                "estado", "ABIERTA"
+            )));
+    }
+
+    @PostMapping("/sesion/abrir")
+    public ResponseEntity<Map<String, String>> abrirCaja() {
+        LocalDate hoy = LocalDate.now();
+        SesionCaja sesion = sesionCajaRepository.findByFecha(hoy).orElseGet(SesionCaja::new);
+        sesion.setFecha(hoy);
+        sesion.setApertura(LocalDateTime.now());
+        sesion.setEstado("ABIERTA");
+        sesionCajaRepository.save(sesion);
+        broadcaster.broadcast();
+        return ResponseEntity.ok(Map.of(
+            "apertura", sesion.getApertura().toString(),
+            "estado", "ABIERTA"
+        ));
+    }
 
     @PostMapping("/cobrar-split")
     public ResponseEntity<Transaccion> registrarPagoSplit(@RequestBody CobrarSplitRequest req) {
@@ -42,6 +75,15 @@ public class CajaController {
     @PostMapping("/cierre")
     public ResponseEntity<Reporte> cerrarCajaDelDia() {
         Reporte r = reporteService.generarCierreDeCaja();
+        LocalDate hoy = LocalDate.now();
+        SesionCaja sesion = sesionCajaRepository.findByFecha(hoy).orElseGet(() -> {
+            SesionCaja s = new SesionCaja();
+            s.setFecha(hoy);
+            s.setApertura(LocalDateTime.now());
+            return s;
+        });
+        sesion.setEstado("CERRADA");
+        sesionCajaRepository.save(sesion);
         broadcaster.broadcast();
         return ResponseEntity.ok(r);
     }

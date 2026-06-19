@@ -60,6 +60,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/caja/cobrar-split").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers(HttpMethod.GET, "/api/caja/transacciones").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers(HttpMethod.GET, "/api/caja/mis-transacciones").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
+                .requestMatchers(HttpMethod.GET, "/api/caja/sesion/hoy").hasAnyAuthority("ROLE_ADMIN", "ROLE_BARBERO")
                 .requestMatchers("/api/caja/**").hasAuthority("ROLE_ADMIN")
 
                 // ── INSUMOS ───────────────────────────────────────────────
