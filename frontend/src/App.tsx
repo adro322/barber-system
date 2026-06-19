@@ -637,8 +637,7 @@ function DashboardScreen({ nombre, alertas }: { nombre: string; alertas: ApiInsu
   const _apertura = new Date(sesion.apertura);
   const _abierta = sesion.estado === 'ABIERTA';
   const sesionTr = _abierta ? transacciones.filter(t => new Date(t.fecha) >= _apertura) : [];
-  const _inicioDia = new Date(); _inicioDia.setHours(0, 0, 0, 0);
-  const sesionTurnos = turnos.filter(t => t.estado !== 'FINALIZADO' && new Date(t.fechaHora) >= _inicioDia);
+  const sesionTurnos = _abierta ? turnos.filter(t => new Date(t.fechaHora) >= _apertura) : [];
 
   const totalsByMethod: Record<string, number> = {};
   let totalHoy = 0;
