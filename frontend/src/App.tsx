@@ -1817,10 +1817,16 @@ function ReporteScreen() {
   const [descargandoMes, setDescargandoMes] = useState(false);
 
   useEffect(() => {
-    api.get<ApiReporte[]>('/api/caja/reportes')
+    const load = () => api.get<ApiReporte[]>('/api/caja/reportes')
       .then(d => setReportes(d ?? []))
       .catch(console.error)
       .finally(() => setLoading(false));
+    load();
+    const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const es = new EventSource(`${BASE}/api/eventos/stream`);
+    es.addEventListener('update', () => load());
+    es.onerror = () => {};
+    return () => { es.close(); };
   }, []);
 
   // Genera lista de meses únicos presentes en los reportes + mes actual
