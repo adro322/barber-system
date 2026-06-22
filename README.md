@@ -10,7 +10,7 @@ Este proyecto fue construido como una solución Full Stack para optimizar la ges
 
 El frontend de esta aplicación se encuentra desplegado y optimizado para producción a través de Vercel. Puedes acceder al sistema completo desde cualquier navegador sin necesidad de instalación local:
 
-🔗 **Enlace del proyecto:** <a href="https://barberves-deko451s-projects.vercel.app" target="_blank">https://barberves-deko451s-projects.vercel.app</a>
+🔗 **Enlace del proyecto:** <a href="https://barberves-deko451s-projects.vercel.app/" target="_blank">https://barberves-deko451s-projects.vercel.app/</a>
 
 ---
 
