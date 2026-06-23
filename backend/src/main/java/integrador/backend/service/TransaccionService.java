@@ -21,13 +21,19 @@ import java.util.List;
 @Service
 public class TransaccionService {
 
-    @Autowired private TransaccionRepository transaccionRepository;
-    @Autowired private TurnoRepository turnoRepository;
-    @Autowired private DetalleServicioRepository detalleServicioRepository;
-    @Autowired private InsumoRepository insumoRepository;
-    @Autowired private EmailService emailService;
+    @Autowired
+    private TransaccionRepository transaccionRepository;
+    @Autowired
+    private TurnoRepository turnoRepository;
+    @Autowired
+    private DetalleServicioRepository detalleServicioRepository;
+    @Autowired
+    private InsumoRepository insumoRepository;
+    @Autowired
+    private EmailService emailService;
 
-    // Descuenta stock de insumos del servicio y devuelve los nombres que quedaron bajo mínimo
+    // Descuenta stock de insumos del servicio y devuelve los nombres que quedaron
+    // bajo mínimo
     private List<String> descontarStockDeServicio(Long idServicio) {
         List<DetalleServicio> detalles = detalleServicioRepository.findByServicioId(idServicio);
         List<String> insumosEnAlerta = new ArrayList<>();
@@ -39,7 +45,8 @@ public class TransaccionService {
             insumo.setStock(nuevoStock);
             insumosActualizados.add(insumo);
             if (nuevoStock <= insumo.getStockMinimo()) {
-                insumosEnAlerta.add(insumo.getNombre() + " (stock: " + nuevoStock + ", mínimo: " + insumo.getStockMinimo() + ")");
+                insumosEnAlerta.add(
+                        insumo.getNombre() + " (stock: " + nuevoStock + ", mínimo: " + insumo.getStockMinimo() + ")");
             }
         }
         insumoRepository.saveAll(insumosActualizados); // batch en vez de N saves individuales
@@ -56,23 +63,27 @@ public class TransaccionService {
         }
 
         BigDecimal e = efectivo != null ? efectivo : BigDecimal.ZERO;
-        BigDecimal y = yape     != null ? yape     : BigDecimal.ZERO;
-        BigDecimal p = plin     != null ? plin     : BigDecimal.ZERO;
+        BigDecimal y = yape != null ? yape : BigDecimal.ZERO;
+        BigDecimal p = plin != null ? plin : BigDecimal.ZERO;
         BigDecimal total = e.add(y).add(p);
 
         BigDecimal precio = turno.getServicio().getPrecio();
         if (total.compareTo(precio) != 0) {
-            throw new RuntimeException("El total ingresado (S/. " + total + ") no coincide con el precio del servicio (S/. " + precio + ").");
+            throw new RuntimeException("El total ingresado (S/. " + total
+                    + ") no coincide con el precio del servicio (S/. " + precio + ").");
         }
 
         List<String> insumosEnAlerta = descontarStockDeServicio(turno.getServicio().getId());
         if (!insumosEnAlerta.isEmpty()) {
-            try { emailService.enviarAlertaStockBajo(insumosEnAlerta); } catch (Exception ignored) {}
+            try {
+                emailService.enviarAlertaStockBajo(insumosEnAlerta);
+            } catch (Exception ignored) {
+            }
         }
 
         int metodosUsados = (e.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0)
-                          + (y.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0)
-                          + (p.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
+                + (y.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0)
+                + (p.compareTo(BigDecimal.ZERO) > 0 ? 1 : 0);
 
         Transaccion pago = new Transaccion();
         pago.setTurno(turno);
@@ -81,9 +92,12 @@ public class TransaccionService {
         pago.setFecha(LocalDateTime.now());
 
         if (metodosUsados <= 1) {
-            if (e.compareTo(BigDecimal.ZERO) > 0) pago.setTipoPago("EFECTIVO");
-            else if (y.compareTo(BigDecimal.ZERO) > 0) pago.setTipoPago("YAPE");
-            else pago.setTipoPago("PLIN");
+            if (e.compareTo(BigDecimal.ZERO) > 0)
+                pago.setTipoPago("EFECTIVO");
+            else if (y.compareTo(BigDecimal.ZERO) > 0)
+                pago.setTipoPago("YAPE");
+            else
+                pago.setTipoPago("PLIN");
         } else {
             pago.setTipoPago("MIXTO");
             pago.setMontoEfectivo(e.compareTo(BigDecimal.ZERO) > 0 ? e : null);
@@ -98,11 +112,11 @@ public class TransaccionService {
 
     public List<Transaccion> listarPorPeriodo(String desde, String hasta) {
         LocalDateTime inicio = (desde != null)
-            ? LocalDate.parse(desde).atStartOfDay()
-            : LocalDate.now().atStartOfDay();
+                ? LocalDate.parse(desde).atStartOfDay()
+                : LocalDate.now().atStartOfDay();
         LocalDateTime fin = (hasta != null)
-            ? LocalDate.parse(hasta).atTime(23, 59, 59)
-            : LocalDate.now().atTime(23, 59, 59);
+                ? LocalDate.parse(hasta).atTime(23, 59, 59)
+                : LocalDate.now().atTime(23, 59, 59);
         return transaccionRepository.findByFechaBetween(inicio, fin);
     }
 
