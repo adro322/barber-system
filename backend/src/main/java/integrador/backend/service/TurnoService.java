@@ -25,6 +25,11 @@ public class TurnoService {
     private ServicioRepository servicioRepository;
 
     public Turno crearTurno(String nombreCliente, Long idServicio, Long idBarbero) {
+        if (nombreCliente == null || nombreCliente.isBlank())
+            throw new IllegalArgumentException("El nombre del cliente no puede estar vacío");
+        if (nombreCliente.length() > 100)
+            throw new IllegalArgumentException("El nombre del cliente no puede superar los 100 caracteres");
+
         Servicio servicio = servicioRepository.findById(idServicio)
                 .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
 
