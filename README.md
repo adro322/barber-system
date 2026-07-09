@@ -50,7 +50,7 @@ El sistema cuenta con datos precargados para facilitar su evaluación técnica y
 
 **👑 Administrador**
 *(Acceso total: Dashboard financiero, gestión de personal, inventario global, reportes Excel).*
-* **Correo:** `admin@barberia.com`
+* **Correo:** `aazuloagaaybar@gmail.com`
 * **Contraseña:** `admin123`
 
 **✂️ Barbero**
